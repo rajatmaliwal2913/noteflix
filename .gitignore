@@ -66,4 +66,4 @@ backend/.env
 
 # OS
 .DS_Store
-backend/.env
+backend/.env:1
