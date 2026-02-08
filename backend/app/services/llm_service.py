@@ -46,3 +46,37 @@ Transcript:
     text = text.replace("```json", "").replace("```", "")
 
     return json.loads(text)
+
+def generate_section_notes(section_text: str):
+    """
+    Generate structured lecture notes for a section using Groq.
+    """
+
+    prompt = f"""
+You are an expert lecture note creator.
+
+Create structured study notes for this lecture section.
+
+Return ONLY valid JSON in this format:
+{{
+  "bullet_notes": ["", "", ""],
+  "explanation": "...",
+  "examples": ["", ""],
+  "key_concepts": ["", ""],
+  "difficulty": "Beginner | Intermediate | Advanced"
+}}
+
+Lecture transcript:
+{section_text[:6000]}
+"""
+
+    response = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+
+    text = response.choices[0].message.content.strip()
+    text = text.replace("```json", "").replace("```", "")
+
+    return json.loads(text)
