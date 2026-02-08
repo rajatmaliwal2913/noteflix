@@ -1,20 +1,22 @@
 """
 NoteFlix Transcript Service
 
-Pipeline:
-1) Fetch video metadata
-2) Try YouTube captions (fast path)
-3) Fallback to Whisper transcription
-4) Normalize output format
+FINAL PIPELINE (production-ready)
+
+1) Fetch video metadata using yt-dlp
+2) Fetch subtitles using yt-dlp (reliable method)
+3) Fallback to Whisper if subtitles unavailable
+4) Return unified transcript format
 """
 
 import os
 import uuid
+import json
+import glob
 import yt_dlp
 import whisper
-from youtube_transcript_api import YouTubeTranscriptApi
 
-# Lazy-loaded whisper model (loads only if needed)
+# Lazy-loaded Whisper model
 WHISPER_MODEL = None
 
 
@@ -41,43 +43,64 @@ def get_video_metadata(url: str):
 
 
 # ---------------------------------------------------
-# YOUTUBE CAPTIONS (FAST PATH)
+# SUBTITLES USING yt-dlp (PRIMARY METHOD)
 # ---------------------------------------------------
 
-def get_youtube_captions(video_id: str):
+def get_captions_with_ytdlp(url: str):
     """
-    Robust caption fetching:
-    1) Manual English captions
-    2) Auto English captions
-    3) Any English-like captions (en-US, en-GB etc)
+    Download English subtitles using yt-dlp.
+    Converts YouTube JSON3 subtitles → transcript format.
     """
+
+    file_id = f"subs_{uuid.uuid4()}"
+    output_template = f"{file_id}"
+
+    ydl_opts = {
+        "skip_download": True,
+        "writesubtitles": True,
+        "writeautomaticsub": True,
+        "subtitleslangs": ["en"],
+        "subtitlesformat": "json3",
+        "outtmpl": output_template,
+        "quiet": True,
+    }
 
     try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
 
-        # 1️⃣ Manual English captions
-        try:
-            transcript = transcript_list.find_manually_created_transcript(['en'])
-            return transcript.fetch()
-        except:
-            pass
+        subtitle_files = glob.glob(f"{file_id}*.json3")
+        if not subtitle_files:
+            return None
 
-        # 2️⃣ Auto-generated English captions
-        try:
-            transcript = transcript_list.find_generated_transcript(['en'])
-            return transcript.fetch()
-        except:
-            pass
+        subtitle_file = subtitle_files[0]
 
-        # 3️⃣ Any English-like captions
-        for transcript in transcript_list:
-            if 'en' in transcript.language_code:
-                return transcript.fetch()
+        with open(subtitle_file, "r") as f:
+            data = json.load(f)
 
-        return None
+        # delete subtitle file after reading
+        os.remove(subtitle_file)
+
+        transcript = []
+
+        for event in data.get("events", []):
+            if "segs" not in event:
+                continue
+
+            text = "".join(seg.get("utf8", "") for seg in event["segs"])
+            start = event.get("tStartMs", 0) / 1000
+            duration = event.get("dDurationMs", 0) / 1000
+
+            transcript.append({
+                "text": text.strip(),
+                "start": start,
+                "end": start + duration
+            })
+
+        return transcript if len(transcript) > 0 else None
 
     except Exception as e:
-        print("⚠️ Caption fetch failed:", e)
+        print("⚠️ yt-dlp subtitle fetch failed:", e)
         return None
 
 
@@ -95,7 +118,7 @@ def load_whisper_model():
 
 def download_youtube_audio(url: str):
     """
-    Downloads audio using yt_dlp → returns mp3 file path
+    Download audio → convert to mp3 → cleanup leftovers
     """
 
     file_id = str(uuid.uuid4())
@@ -110,10 +133,19 @@ def download_youtube_audio(url: str):
             "preferredcodec": "mp3",
             "preferredquality": "192",
         }],
+        "keepvideo": False,
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
+
+    # cleanup non-mp3 leftovers
+    for file in glob.glob(f"{file_id}.*"):
+        if not file.endswith(".mp3"):
+            try:
+                os.remove(file)
+            except:
+                pass
 
     return f"{file_id}.mp3"
 
@@ -122,21 +154,6 @@ def whisper_transcribe(audio_path: str):
     model = load_whisper_model()
     result = model.transcribe(audio_path)
     return result["segments"]
-
-
-# ---------------------------------------------------
-# NORMALIZATION
-# ---------------------------------------------------
-
-def normalize_captions(captions):
-    return [
-        {
-            "text": c["text"].strip(),
-            "start": c["start"],
-            "end": c["start"] + c.get("duration", 0)
-        }
-        for c in captions
-    ]
 
 
 def normalize_whisper(segments):
@@ -156,31 +173,30 @@ def normalize_whisper(segments):
 
 def generate_transcript(url: str):
     """
-    Main orchestrator:
-    Captions → Whisper fallback → unified output
+    FINAL ORCHESTRATOR
+    yt-dlp subtitles → Whisper fallback
     """
 
     metadata = get_video_metadata(url)
-    video_id = metadata["video_id"]
 
     print("📺 Processing video:", metadata["title"])
 
-    # 1️⃣ Try captions (fast path)
-    captions = get_youtube_captions(video_id)
+    # 1️⃣ Try subtitles (fast path)
+    captions = get_captions_with_ytdlp(url)
 
     if captions:
-        print("⚡ Using YouTube captions")
-        transcript = normalize_captions(captions)
-        source = "youtube_captions"
+        print("⚡ Using YouTube subtitles")
+        transcript = captions
+        source = "youtube_subtitles"
 
     else:
-        print("🤖 Falling back to Whisper transcription")
+        print("🤖 Subtitles not found → Using Whisper")
         audio_file = download_youtube_audio(url)
         segments = whisper_transcribe(audio_file)
         transcript = normalize_whisper(segments)
         source = "whisper"
 
-        # cleanup temp file
+        # delete temp audio file
         if os.path.exists(audio_file):
             os.remove(audio_file)
 
