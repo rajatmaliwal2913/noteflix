@@ -1,15 +1,19 @@
 import os
 import json
-import google.generativeai as genai
+from pathlib import Path
+from dotenv import load_dotenv
+from groq import Groq
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# Load .env from backend root
+env_path = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(env_path)
 
-model = genai.GenerativeModel("gemini-1.5-flash")
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
 def generate_section_metadata(section_text: str):
     """
-    Generate title + summary for a lecture section
+    Generate section title + summary using Groq (Llama 3.1)
     """
 
     prompt = f"""
@@ -30,10 +34,15 @@ Transcript:
 {section_text[:6000]}
 """
 
-    response = model.generate_content(prompt)
-    text = response.text.strip()
+    response = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+    )
 
-    # Gemini sometimes wraps JSON in ```json ```
+    text = response.choices[0].message.content.strip()
+
+    # Remove ```json if model wraps output
     text = text.replace("```json", "").replace("```", "")
 
     return json.loads(text)

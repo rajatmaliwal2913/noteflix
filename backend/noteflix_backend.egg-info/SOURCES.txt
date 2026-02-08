@@ -1,0 +1,17 @@
+pyproject.toml
+app/__init__.py
+app/main.py
+app/api/transcript.py
+app/api/videos.py
+app/core/config.py
+app/core/database.py
+app/models/video.py
+app/schemas/video.py
+app/services/llm_service.py
+app/services/section_service.py
+app/services/transcript_service.py
+app/services/youtube.py
+noteflix_backend.egg-info/PKG-INFO
+noteflix_backend.egg-info/SOURCES.txt
+noteflix_backend.egg-info/dependency_links.txt
+noteflix_backend.egg-info/top_level.txt

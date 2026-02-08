@@ -1,0 +1,8 @@
+[project]
+name = "ai_pipeline"
+version = "0.1.0"
+description = "AI processing modules for NoteFlix"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
