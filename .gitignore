@@ -1,0 +1,43 @@
+# ------------------------------
+# Python
+# ------------------------------
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+
+# Whisper / AI models
+*.pt
+*.bin
+*.onnx
+*.ckpt
+
+# Audio / video temp files
+*.mp3
+*.wav
+*.m4a
+*.webm
+*.mp4
+
+# OS junk
+.DS_Store
+
+# ------------------------------
+# Node / Next.js
+# ------------------------------
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Logs
+*.log
+
+# Env files
+.env
+.env.local
+.env.*
+
+# Docker
+*.tar
