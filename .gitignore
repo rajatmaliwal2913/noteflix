@@ -52,7 +52,7 @@ node_modules/
 
 # Env
 .env
-
+backend/.env
 # AI models
 *.pt
 *.bin
