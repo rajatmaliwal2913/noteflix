@@ -80,3 +80,45 @@ Lecture transcript:
     text = text.replace("```json", "").replace("```", "")
 
     return json.loads(text)
+
+
+def generate_revision_material(full_notes_text: str):
+    """
+    Generate study revision material from full lecture notes.
+    """
+
+    prompt = f"""
+You are an expert study assistant.
+
+From the lecture notes below, generate revision material.
+
+Return ONLY valid JSON in this format:
+{{
+  "tldr": "5-7 bullet summary",
+  "flashcards": [
+    {{"question": "...", "answer": "..."}}
+  ],
+  "quiz": [
+    {{
+      "question": "...",
+      "options": ["A", "B", "C", "D"],
+      "answer": "A"
+    }}
+  ],
+  "interview_questions": ["", "", ""]
+}}
+
+Lecture Notes:
+{full_notes_text[:8000]}
+"""
+
+    response = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+
+    text = response.choices[0].message.content.strip()
+    text = text.replace("```json", "").replace("```", "")
+
+    return json.loads(text)
