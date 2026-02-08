@@ -33,13 +33,25 @@ def get_video_metadata(url: str):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
+    # Extract chapters if available
+    chapters = []
+    if "chapters" in info and info["chapters"]:
+        for ch in info["chapters"]:
+            chapters.append({
+                "title": ch["title"],
+                "start": ch["start_time"],
+                "end": ch["end_time"]
+            })
+
     return {
         "video_id": info["id"],
         "title": info["title"],
         "duration": info["duration"],
         "author": info.get("uploader"),
         "thumbnail": info.get("thumbnail"),
+        "chapters": chapters   # ⭐ NEW FIELD
     }
+
 
 
 # ---------------------------------------------------
