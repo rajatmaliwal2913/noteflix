@@ -8,7 +8,11 @@ from groq import Groq
 env_path = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(env_path)
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY"),
+    timeout=30,
+)
+
 
 
 def generate_section_metadata(section_text: str):
