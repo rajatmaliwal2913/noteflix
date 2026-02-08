@@ -122,3 +122,32 @@ Lecture Notes:
     text = text.replace("```json", "").replace("```", "")
 
     return json.loads(text)
+
+
+def chat_with_context(question: str, context_docs: list[str]):
+    """
+    Answer user question using retrieved lecture context.
+    """
+
+    context = "\n\n".join(context_docs)
+
+    prompt = f"""
+You are a helpful study assistant.
+
+Use the lecture context below to answer the question.
+If answer is not in context, say you don't know.
+
+Lecture Context:
+{context[:8000]}
+
+Question:
+{question}
+"""
+
+    response = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+
+    return response.choices[0].message.content
