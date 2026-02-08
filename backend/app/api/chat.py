@@ -1,0 +1,10 @@
+from fastapi import APIRouter
+from app.schemas.video import ChatRequest
+from app.services.chat_service import ask_lecture_question
+
+router = APIRouter()
+
+
+@router.post("/chat")
+def chat(req: ChatRequest):
+    return ask_lecture_question(req.question)
