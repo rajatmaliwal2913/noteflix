@@ -10,11 +10,8 @@ export default function Home() {
   const router = useRouter();
 
   const handleSubmit = async () => {
-    setLoading(true);
-    const data = await processVideo(url);
-
-    localStorage.setItem("noteflix_data", JSON.stringify(data));
-    router.push("/notes");
+    localStorage.setItem("yt_url", url);
+    router.push("/process");
   };
 
   return (
