@@ -41,3 +41,28 @@ frontend/out/
 
 # Docker
 *.tar
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+.next/
+
+# Env
+.env
+
+# AI models
+*.pt
+*.bin
+
+# Audio/video
+*.mp3
+*.wav
+*.m4a
+*.webm
+*.mp4
+
+# OS
+.DS_Store
