@@ -1,6 +1,9 @@
-from app.services.llm_service import generate_revision_material
-
-
+from app.services.llm_service import (
+    generate_tldr,
+    generate_flashcards,
+    generate_quiz,
+    generate_interview_questions,
+)
 def combine_notes_text(notes):
     """
     Convert notes JSON → text for LLM.
@@ -29,9 +32,23 @@ def combine_notes_text(notes):
 
 
 def generate_revision_from_notes(notes):
-    """
-    Generate TLDR, flashcards, quiz from notes.
-    """
+    text = combine_notes_text(notes)
 
-    full_text = combine_notes_text(notes)
-    return generate_revision_material(full_text)
+    print("📚 Generating TLDR...")
+    tldr = generate_tldr(text)
+
+    print("🧠 Generating flashcards...")
+    flashcards = generate_flashcards(text)
+
+    print("❓ Generating quiz...")
+    quiz = generate_quiz(text)
+
+    print("💼 Generating interview questions...")
+    interview = generate_interview_questions(text)
+
+    return {
+        "tldr": tldr["tldr"],
+        "flashcards": flashcards["flashcards"],
+        "quiz": quiz["quiz"],
+        "interview_questions": interview["questions"],
+    }
