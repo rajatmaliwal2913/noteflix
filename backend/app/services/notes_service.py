@@ -1,4 +1,5 @@
 from app.services.llm_service import generate_section_notes
+import time
 
 
 def generate_notes_for_sections(sections):
@@ -12,7 +13,7 @@ def generate_notes_for_sections(sections):
         print("📝 Generating notes for:", section["title"])
 
         ai_notes = generate_section_notes(section["text"])
-
+        time.sleep(3)
         notes.append({
             "title": section["title"],
             "summary": section["summary"],

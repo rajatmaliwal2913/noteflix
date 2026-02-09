@@ -3,7 +3,9 @@ import json
 from pathlib import Path
 from dotenv import load_dotenv
 from groq import Groq
-
+import time
+import re
+from groq import RateLimitError
 # Load .env from backend root
 env_path = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(env_path)
@@ -38,7 +40,8 @@ Transcript:
 {section_text[:6000]}
 """
 
-    response = client.chat.completions.create(
+    response = groq_with_retry(
+        client.chat.completions.create,
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,
@@ -49,7 +52,8 @@ Transcript:
     # Remove ```json if model wraps output
     text = text.replace("```json", "").replace("```", "")
 
-    return json.loads(text)
+    return safe_json_loads(text)
+
 
 def generate_section_notes(section_text: str):
     """
@@ -74,7 +78,8 @@ Lecture transcript:
 {section_text[:6000]}
 """
 
-    response = client.chat.completions.create(
+    response = groq_with_retry(
+        client.chat.completions.create,
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
@@ -83,7 +88,8 @@ Lecture transcript:
     text = response.choices[0].message.content.strip()
     text = text.replace("```json", "").replace("```", "")
 
-    return json.loads(text)
+    return safe_json_loads(text)
+
 
 
 def generate_revision_material(full_notes_text: str):
@@ -125,7 +131,8 @@ Lecture Notes:
     text = response.choices[0].message.content.strip()
     text = text.replace("```json", "").replace("```", "")
 
-    return json.loads(text)
+    return safe_json_loads(text)
+
 
 
 def chat_with_context(question: str, context_docs: list[str]):
@@ -155,3 +162,37 @@ Question:
     )
 
     return response.choices[0].message.content
+def groq_with_retry(func, *args, **kwargs):
+    """
+    Retry Groq calls when rate limited.
+    """
+    for attempt in range(3):
+        try:
+            return func(*args, **kwargs)
+        except RateLimitError as e:
+            wait_time = 8 + attempt * 4
+            print(f"⏳ Rate limited. Waiting {wait_time}s...")
+            time.sleep(wait_time)
+
+    raise Exception("Groq failed after retries")
+
+def safe_json_loads(text: str):
+    """
+    Extract JSON from messy LLM output safely.
+    """
+
+    if not text:
+        raise Exception("Empty LLM response")
+
+    # remove markdown code fences
+    text = text.replace("```json", "").replace("```", "")
+
+    # find first JSON object in text
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+
+    if not match:
+        raise Exception("No JSON found in LLM response")
+
+    json_text = match.group(0)
+
+    return json.loads(json_text)
