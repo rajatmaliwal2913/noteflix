@@ -67,3 +67,28 @@ backend/.env
 # OS
 .DS_Store
 backend/.env:1
+# Python
+backend/venv/
+backend/__pycache__/
+backend/.env
+backend/*.mp3
+backend/*.json3
+backend/models/
+
+# Node / Next
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Mac junk
+.DS_Store
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Env
+.env
