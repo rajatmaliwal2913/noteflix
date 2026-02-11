@@ -92,46 +92,82 @@ Lecture transcript:
 
 
 
-def generate_revision_material(full_notes_text: str):
-    """
-    Generate study revision material from full lecture notes.
-    """
-
+def generate_tldr(notes_text: str):
     prompt = f"""
-You are an expert study assistant.
+Create a concise TLDR summary (5-7 bullet points)
+from these lecture notes.
 
-From the lecture notes below, generate revision material.
+Return JSON:
+{{ "tldr": ["", "", ""] }}
 
-Return ONLY valid JSON in this format:
-{{
-  "tldr": "5-7 bullet summary",
-  "flashcards": [
-    {{"question": "...", "answer": "..."}}
-  ],
-  "quiz": [
-    {{
-      "question": "...",
-      "options": ["A", "B", "C", "D"],
-      "answer": "A"
-    }}
-  ],
-  "interview_questions": ["", "", ""]
-}}
-
-Lecture Notes:
-{full_notes_text[:8000]}
+Notes:
+{notes_text[:4000]}
 """
-
-    response = client.chat.completions.create(
+    response = groq_with_retry(
+        client.chat.completions.create,
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
     )
 
-    text = response.choices[0].message.content.strip()
-    text = text.replace("```json", "").replace("```", "")
+    return safe_json_loads(response.choices[0].message.content)
 
-    return safe_json_loads(text)
+def generate_flashcards(notes_text: str):
+    prompt = f"""
+Create 5 study flashcards from these notes.
+
+Return JSON:
+{{ "flashcards":[{{"question":"","answer":""}}] }}
+
+Notes:
+{notes_text[:4000]}
+"""
+    response = groq_with_retry(
+        client.chat.completions.create,
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+
+    return safe_json_loads(response.choices[0].message.content)
+
+def generate_quiz(notes_text: str):
+    prompt = f"""
+Create 3 MCQ quiz questions.
+
+Return JSON:
+{{ "quiz":[{{"question":"","options":["A","B","C","D"],"answer":"A"}}] }}
+
+Notes:
+{notes_text[:4000]}
+"""
+    response = groq_with_retry(
+        client.chat.completions.create,
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+
+    return safe_json_loads(response.choices[0].message.content)
+
+def generate_interview_questions(notes_text: str):
+    prompt = f"""
+Create 5 interview questions from these notes.
+
+Return JSON:
+{{ "questions":["","",""] }}
+
+Notes:
+{notes_text[:4000]}
+"""
+    response = groq_with_retry(
+        client.chat.completions.create,
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+
+    return safe_json_loads(response.choices[0].message.content)
 
 
 

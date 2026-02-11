@@ -12,8 +12,13 @@ export default function ProcessingPage() {
       const url = localStorage.getItem("yt_url");
       if (!url) return;
 
-      const data = await processVideo(url);
-      localStorage.setItem("noteflix_data", JSON.stringify(data));
+      try {
+        const data = await processVideo(url);
+        localStorage.setItem("noteflix_data", JSON.stringify(data));
+        router.push("/notes");
+        } catch (err) {
+        alert("Processing failed. Please try again.");
+       }
 
       router.push("/notes");
     };
