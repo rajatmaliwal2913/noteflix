@@ -118,11 +118,51 @@ export default function ProcessPage() {
               />
             </div>
 
-            {/* Options */}
-            <div className="grid grid-cols-2 gap-6 mb-10">
-              <Select title="Notes Style" options={["Concise","Detailed"]}/>
-              <Select title="Format" options={["Bullet Points","Paragraphs"]}/>
+            {/* 🧠 CUSTOMIZATION PANEL */}
+            <div className="bg-white/60 backdrop-blur-xl border border-white/40 rounded-3xl p-8 mb-10">
+
+            <h3 className="text-2xl font-bold mb-6 text-gray-900">
+                Customize Your Notes
+            </h3>
+
+            <div className="grid grid-cols-3 gap-6">
+
+                <Select
+                title="Notes Depth"
+                options={[
+                    "Concise",
+                    "Detailed",
+                    "Exam Revision",
+                    "Beginner Friendly",
+                    "Interview Prep"
+                ]}
+                />
+
+                <Select
+                title="Format"
+                options={[
+                    "Bullet Points",
+                    "Paragraphs",
+                    "Structured Outline",
+                    "Mind Map Style",
+                    "Cornell Notes"
+                ]}
+                />
+
+                <Select
+                title="Tone"
+                options={[
+                    "Academic",
+                    "Simple & Friendly",
+                    "Technical",
+                    "Story Based"
+                ]}
+                />
+
             </div>
+
+            </div>
+
 
             <button
               onClick={generateNotes}
@@ -174,8 +214,9 @@ function Select({title, options}:{title:string, options:string[]}) {
   return (
     <div>
       <label className="font-semibold text-gray-700">{title}</label>
+
       <select
-        className="w-full mt-2 p-4 rounded-xl 
+        className="w-full mt-2 px-4 py-4 rounded-xl 
         bg-white text-gray-900 border border-gray-200
         outline-none focus:ring-2 focus:ring-purple-500"
       >
@@ -184,3 +225,4 @@ function Select({title, options}:{title:string, options:string[]}) {
     </div>
   );
 }
+
