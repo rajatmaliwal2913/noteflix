@@ -1,22 +1,24 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# 👇 IMPORTANT — correct import path
 from app.api.pipeline import router as pipeline_router
-from app.api.chat import router as chat_router
 
-app = FastAPI(title="NoteFlix API")
+app = FastAPI(title="Noteflix API")
 
-# 🔥 ADD THIS BLOCK (CORS FIX)
+# CORS for Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # allow frontend
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+# Health route
+@app.get("/")
+def root():
+    return {"message": "Noteflix backend running 🚀"}
 
+# 👇 THIS registers the pipeline endpoints
 app.include_router(pipeline_router)
-app.include_router(chat_router)

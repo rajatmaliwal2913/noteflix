@@ -1,6 +1,5 @@
 """
 NoteFlix Transcript Service
-
 FINAL PIPELINE (production-ready)
 
 1) Fetch video metadata using yt-dlp
@@ -21,37 +20,38 @@ WHISPER_MODEL = None
 
 
 # ---------------------------------------------------
-# VIDEO METADATA
+# VIDEO METADATA (SAFE + FAULT TOLERANT)
 # ---------------------------------------------------
 
 def get_video_metadata(url: str):
     ydl_opts = {
         "quiet": True,
-        "skip_download": True
+        "skip_download": True,
+        "nocheckcertificate": True,
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
-    # Extract chapters if available
+    # Extract chapters safely
     chapters = []
-    if "chapters" in info and info["chapters"]:
+    if info.get("chapters"):
         for ch in info["chapters"]:
             chapters.append({
-                "title": ch["title"],
-                "start": ch["start_time"],
-                "end": ch["end_time"]
+                "title": ch.get("title", "Chapter"),
+                "start": ch.get("start_time", 0),
+                "end": ch.get("end_time", 0)
             })
 
+    # ⭐ SAFE metadata (no KeyError ever again)
     return {
-        "video_id": info["id"],
-        "title": info["title"],
-        "duration": info["duration"],
-        "author": info.get("uploader"),
-        "thumbnail": info.get("thumbnail"),
-        "chapters": chapters   # ⭐ NEW FIELD
+        "video_id": info.get("id"),
+        "title": info.get("title", "Untitled Video"),
+        "duration": info.get("duration", 0),
+        "author": info.get("uploader", "Unknown"),
+        "thumbnail": info.get("thumbnail", ""),
+        "chapters": chapters
     }
-
 
 
 # ---------------------------------------------------
@@ -61,7 +61,7 @@ def get_video_metadata(url: str):
 def get_captions_with_ytdlp(url: str):
     """
     Download English subtitles using yt-dlp.
-    Converts YouTube JSON3 subtitles → transcript format.
+    Converts YouTube JSON3 → transcript format.
     """
 
     file_id = f"subs_{uuid.uuid4()}"
@@ -83,6 +83,7 @@ def get_captions_with_ytdlp(url: str):
 
         subtitle_files = glob.glob(f"{file_id}*.json3")
         if not subtitle_files:
+            print("❌ No subtitles found")
             return None
 
         subtitle_file = subtitle_files[0]
@@ -90,7 +91,6 @@ def get_captions_with_ytdlp(url: str):
         with open(subtitle_file, "r") as f:
             data = json.load(f)
 
-        # delete subtitle file after reading
         os.remove(subtitle_file)
 
         transcript = []
@@ -103,13 +103,17 @@ def get_captions_with_ytdlp(url: str):
             start = event.get("tStartMs", 0) / 1000
             duration = event.get("dDurationMs", 0) / 1000
 
-            transcript.append({
-                "text": text.strip(),
-                "start": start,
-                "end": start + duration
-            })
+            if text.strip():
+                transcript.append({
+                    "text": text.strip(),
+                    "start": start,
+                    "end": start + duration
+                })
 
-        return transcript if len(transcript) > 0 else None
+        if len(transcript) == 0:
+            return None
+
+        return transcript
 
     except Exception as e:
         print("⚠️ yt-dlp subtitle fetch failed:", e)
@@ -123,7 +127,7 @@ def get_captions_with_ytdlp(url: str):
 def load_whisper_model():
     global WHISPER_MODEL
     if WHISPER_MODEL is None:
-        print("🔊 Loading Whisper model...")
+        print("🔊 Loading Whisper model (first time only)...")
         WHISPER_MODEL = whisper.load_model("base")
     return WHISPER_MODEL
 
@@ -146,12 +150,13 @@ def download_youtube_audio(url: str):
             "preferredquality": "192",
         }],
         "keepvideo": False,
+        "nocheckcertificate": True,
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
 
-    # cleanup non-mp3 leftovers
+    # Cleanup non-mp3 leftovers
     for file in glob.glob(f"{file_id}.*"):
         if not file.endswith(".mp3"):
             try:
@@ -180,20 +185,18 @@ def normalize_whisper(segments):
 
 
 # ---------------------------------------------------
-# MAIN PIPELINE ⭐
+# MAIN ORCHESTRATOR ⭐
 # ---------------------------------------------------
 
 def generate_transcript(url: str):
     """
-    FINAL ORCHESTRATOR
     yt-dlp subtitles → Whisper fallback
     """
 
     metadata = get_video_metadata(url)
-
     print("📺 Processing video:", metadata["title"])
 
-    # 1️⃣ Try subtitles (fast path)
+    # 1️⃣ Try subtitles (FAST PATH)
     captions = get_captions_with_ytdlp(url)
 
     if captions:
@@ -208,9 +211,10 @@ def generate_transcript(url: str):
         transcript = normalize_whisper(segments)
         source = "whisper"
 
-        # delete temp audio file
         if os.path.exists(audio_file):
             os.remove(audio_file)
+
+    print(f"✅ Transcript segments: {len(transcript)}")
 
     return {
         "metadata": metadata,

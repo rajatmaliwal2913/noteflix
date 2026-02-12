@@ -2,7 +2,5 @@ from pydantic import BaseModel
 
 class VideoRequest(BaseModel):
     url: str
-
-
-class ChatRequest(BaseModel):
-    question: str
+    depth: str = "concise"     # concise | detailed
+    format: str = "bullets"    # bullets | paragraphs

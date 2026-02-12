@@ -5,13 +5,17 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Youtube, Loader2, Sparkles, Film, Wand2, ArrowRight
 } from "lucide-react";
-
+import { processVideo } from "@/lib/api";
+import { useRouter } from "next/navigation";
 export default function ProcessPage() {
   const [url, setUrl] = useState("");
   const [videoId, setVideoId] = useState("");
   const [step, setStep] = useState<"input" | "preview" | "processing">("input");
   const [progress, setProgress] = useState(0);
-
+  const router = useRouter();
+  const [depth, setDepth] = useState("Concise");
+  const [format, setFormat] = useState("Bullet Points");
+  const [tone, setTone] = useState("Academic");
   /* Extract YouTube ID */
   function getVideoId(link: string) {
     const reg =
@@ -33,15 +37,30 @@ export default function ProcessPage() {
 
   /* STEP 2 → Fake processing (later connect API) */
   async function generateNotes() {
+  try {
     setStep("processing");
-    setProgress(0);
+    setProgress(10);
 
-    const steps = [15, 35, 55, 75, 90, 100];
-    for (let s of steps) {
-      await new Promise(r => setTimeout(r, 900));
-      setProgress(s);
-    }
+    const data = await processVideo(url, {
+      depth,
+      format,
+      tone
+    });
+
+    setProgress(100);
+
+    // Save result locally for next page
+    localStorage.setItem("noteflix_notes", JSON.stringify(data));
+
+    // redirect to notes viewer page
+    router.push("/notes");
+
+  } catch (err) {
+    alert("Processing failed. Check backend.");
+    setStep("preview");
   }
+}
+
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] flex items-center justify-center p-10 relative overflow-hidden">
@@ -210,19 +229,22 @@ export default function ProcessPage() {
 }
 
 /* reusable select */
-function Select({title, options}:{title:string, options:string[]}) {
+function Select({title, options, value, setValue}:any) {
   return (
     <div>
       <label className="font-semibold text-gray-700">{title}</label>
 
       <select
+        value={value}
+        onChange={(e)=>setValue(e.target.value)}
         className="w-full mt-2 px-4 py-4 rounded-xl 
         bg-white text-gray-900 border border-gray-200
         outline-none focus:ring-2 focus:ring-purple-500"
       >
-        {options.map(o => <option key={o}>{o}</option>)}
+        {options.map((o:string) => <option key={o}>{o}</option>)}
       </select>
     </div>
   );
 }
+
 
