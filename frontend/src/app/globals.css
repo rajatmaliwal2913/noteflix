@@ -24,3 +24,14 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+/* Fix dark-mode autofill + placeholder visibility */
+input, textarea {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9CA3AF !important;
+  opacity: 1 !important;
+}

@@ -17,30 +17,24 @@ export default function SignupPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    // 1️⃣ Create auth user
-    const { data, error } = await supabase.auth.signUp({
+    // ✅ Create auth user + pass name as metadata
+    const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          name: name,
+        },
+      },
     });
 
+    setIsLoading(false);
+
     if (error) {
-      setIsLoading(false);
       alert(error.message);
       return;
     }
 
-    // 2️⃣ Save profile data (name + email)
-    const user = data.user;
-
-    if (user) {
-      await supabase.from("profiles").insert({
-        id: user.id,
-        name: name,
-        email: email,
-      });
-    }
-
-    setIsLoading(false);
     alert("Account created successfully!");
     router.push("/login");
   }
