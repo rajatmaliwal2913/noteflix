@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # 👇 IMPORTANT — correct import path
 from app.api.pipeline import router as pipeline_router
+from app.api.chat import router as chat_router
 
 app = FastAPI(title="Noteflix API")
 
@@ -22,3 +23,4 @@ def root():
 
 # 👇 THIS registers the pipeline endpoints
 app.include_router(pipeline_router)
+app.include_router(chat_router)

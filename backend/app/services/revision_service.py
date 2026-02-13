@@ -4,6 +4,8 @@ from app.services.llm_service import (
     generate_quiz,
     generate_interview_questions,
 )
+import asyncio
+
 def combine_notes_text(notes):
     """
     Convert notes JSON → text for LLM.
@@ -31,20 +33,20 @@ def combine_notes_text(notes):
     return "\n".join(parts)
 
 
-def generate_revision_from_notes(notes):
+async def generate_revision_from_notes(notes):
     text = combine_notes_text(notes)
 
-    print("📚 Generating TLDR...")
-    tldr = generate_tldr(text)
+    print("📚 Generating TLDR (Async)...")
+    # Run independent tasks in parallel
+    tldr_task = generate_tldr(text)
+    flashcards_task = generate_flashcards(text)
+    quiz_task = generate_quiz(text)
+    interview_task = generate_interview_questions(text)
 
-    print("🧠 Generating flashcards...")
-    flashcards = generate_flashcards(text)
-
-    print("❓ Generating quiz...")
-    quiz = generate_quiz(text)
-
-    print("💼 Generating interview questions...")
-    interview = generate_interview_questions(text)
+    # Wait for all
+    tldr, flashcards, quiz, interview = await asyncio.gather(
+        tldr_task, flashcards_task, quiz_task, interview_task
+    )
 
     return {
         "tldr": tldr["tldr"],

@@ -71,10 +71,11 @@ def get_captions_with_ytdlp(url: str):
         "skip_download": True,
         "writesubtitles": True,
         "writeautomaticsub": True,
-        "subtitleslangs": ["en"],
+        "subtitleslangs": ["en", "en-US", "en-orig", "en-GB"],
         "subtitlesformat": "json3",
         "outtmpl": output_template,
         "quiet": True,
+        "no_warnings": True,
     }
 
     try:

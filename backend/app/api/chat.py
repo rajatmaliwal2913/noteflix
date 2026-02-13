@@ -6,5 +6,5 @@ router = APIRouter()
 
 
 @router.post("/chat")
-def chat(req: ChatRequest):
-    return ask_lecture_question(req.question)
+async def chat(req: ChatRequest):
+    return await ask_lecture_question(req.question, req.transcript)

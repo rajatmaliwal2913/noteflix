@@ -1,5 +1,6 @@
 from ai_pipeline.chunking.chunker import create_sections
 from app.services.llm_service import generate_section_metadata
+import asyncio
 
 def split_transcript_by_chapters(transcript, chapters):
     sections = []
@@ -26,37 +27,37 @@ def split_transcript_by_chapters(transcript, chapters):
 
     return sections
 
-def generate_sections(transcript, metadata):
-    # 1️⃣ YouTube chapters
-    if metadata.get("chapters"):
+async def generate_sections(transcript, metadata, selected_ranges=None):
+    """
+    Generate sections using YouTube chapters (no separate AI title generation).
+    Uses chapter titles directly for speed.
+    """
+    base_sections = []
+
+    # 1️⃣ Explicit Ranges (User Selected)
+    if selected_ranges:
+        print(f"✂️ Filtering for {len(selected_ranges)} selected user ranges")
+        formatted_chapters = []
+        for i, rng in enumerate(selected_ranges):
+            formatted_chapters.append({
+                "title": rng.title,
+                "start": rng.start,
+                "end": rng.end
+            })
+        base_sections = split_transcript_by_chapters(transcript, formatted_chapters)
+
+    # 2️⃣ YouTube chapters (Default if no selection)
+    elif metadata.get("chapters"):
         print("📚 Using YouTube chapters")
         base_sections = split_transcript_by_chapters(
             transcript, metadata["chapters"]
         )
+    
+    # 3️⃣ Fallback chunking (AI) - only if no chapters
     else:
-        # 2️⃣ fallback chunking
         print("🧠 No chapters found → using AI chunking")
         base_sections = create_sections(transcript)
 
-    # 3️⃣ Enrich with Gemini ⭐
-    print("✨ Generating AI titles & summaries")
-    return enrich_sections_with_ai(base_sections)
-
-def enrich_sections_with_ai(sections):
-    enriched = []
-
-    for section in sections:
-        print("🤖 Generating AI title:", section.get("title", "Untitled"))
-
-        ai_meta = generate_section_metadata(section["text"])
-
-        enriched.append({
-            "title": ai_meta["title"],
-            "summary": ai_meta["summary"],
-            "start": section["start"],
-            "end": section["end"],
-            "text": section["text"],
-            "source": section.get("source", "ai_generated")
-        })
-
-    return enriched
+    # Return sections directly with YouTube chapter titles (no separate AI call)
+    # Title and notes will be generated together in notes_service
+    return base_sections
