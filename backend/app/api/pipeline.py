@@ -8,7 +8,6 @@ from app.schemas.video import VideoProcessRequest, VideoRequest
 from app.services.transcript_service import generate_transcript, get_video_metadata
 from app.services.section_service import generate_sections
 from app.services.notes_service import generate_notes_for_sections
-from app.services.revision_service import generate_revision_from_notes
 from app.services.embedding_service import create_embeddings_for_sections
 
 router = APIRouter()

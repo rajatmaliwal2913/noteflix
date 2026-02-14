@@ -184,29 +184,31 @@ export default function NotesPage() {
   };
 
   const generateExtra = async (type: "tldr" | "quiz" | "flashcards" | "interview") => {
-    if (extras[type]) return;
+    // Feature disabled as per user request to remove redundant backend code
+    console.log("Extras generation is currently disabled.");
+    // if (extras[type]) return;
 
-    setGenerating(type);
-    try {
-      const notesText = data.notes.map((n: any) =>
-        `${n.title}\n${n.notes.explanation}\n${n.notes.bullet_notes.join("\n")}`
-      ).join("\n\n");
+    // setGenerating(type);
+    // try {
+    //   const notesText = data.notes.map((n: any) =>
+    //     `${n.title}\n${n.notes.explanation}\n${n.notes.bullet_notes.join("\n")}`
+    //   ).join("\n\n");
 
-      const response = await fetch(`http://127.0.0.1:8000/generate-${type}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes_text: notesText }),
-      });
+    //   const response = await fetch(`http://127.0.0.1:8000/generate-${type}`, {
+    //     method: "POST",
+    //     headers: { "Content-Type": "application/json" },
+    //     body: JSON.stringify({ notes_text: notesText }),
+    //   });
 
-      if (!response.ok) throw new Error("Generation failed");
-      const result = await response.json();
+    //   if (!response.ok) throw new Error("Generation failed");
+    //   const result = await response.json();
 
-      setExtras((prev: any) => ({ ...prev, [type]: result }));
-    } catch (err) {
-      alert(`Failed to generate ${type}`);
-    } finally {
-      setGenerating(null);
-    }
+    //   setExtras((prev: any) => ({ ...prev, [type]: result }));
+    // } catch (err) {
+    //   alert(`Failed to generate ${type}`);
+    // } finally {
+    //   setGenerating(null);
+    // }
   };
 
   const downloadContent = async () => {
@@ -421,8 +423,8 @@ export default function NotesPage() {
                 >
                   <div
                     className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.role === "user"
-                        ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-                        : "bg-gray-100 text-gray-900"
+                      ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                      : "bg-gray-100 text-gray-900"
                       }`}
                   >
                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -479,8 +481,8 @@ export default function NotesPage() {
                   }
                 }}
                 className={`px-4 py-2 flex items-center gap-2 text-sm font-medium transition relative ${outputTab === tab.id
-                    ? "text-purple-600"
-                    : "text-gray-500 hover:text-gray-700"
+                  ? "text-purple-600"
+                  : "text-gray-500 hover:text-gray-700"
                   }`}
               >
                 <tab.icon size={16} />
