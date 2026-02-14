@@ -28,7 +28,7 @@ MODEL = "llama-3.1-8b-instant"
 
 # Global Semaphore to limit concurrent Groq calls
 # Increased for faster parallel processing
-GROQ_SEMAPHORE = asyncio.Semaphore(20)
+GROQ_SEMAPHORE = asyncio.Semaphore(10)
 
 async def groq_with_retry(func, *args, **kwargs):
     """
@@ -187,8 +187,12 @@ Chapter: {chapter_title}
 Format: {format_instruction} | Depth: {depth_instruction} | Tone: {tone} | Language: {language}
 
 Rules:
+- Write ALL content strictly in {language}.
+- Follow the {format_instruction} format strictly.
+- Adopt a {tone} tone.
+- {depth_instruction} content depth.
 - Write facts directly, no "speaker says" phrases
-- CORRECT spelling errors automatically (e.g., Blinket→Blinkit)
+- CORRECT spelling errors automatically
 - Use proper brand names and capitalization
 - Title should be concise and descriptive
 - Return ONLY the JSON object, no explanations or markdown
@@ -244,10 +248,12 @@ async def generate_section_notes(
 
 
 
-async def generate_tldr(notes_text: str):
+
+async def generate_tldr(notes_text: str, language: str = "English"):
     prompt = f"""
-    Create a concise TLDR summary (5-7 bullet points)
-    from these lecture notes.
+    Create a concise TLDR summary (5-7 bullet points) from these lecture notes.
+    
+    CRITICAL: Write ALL content strictly in {language}.
     
     Return JSON:
     {{ "tldr": ["", "", ""] }}
@@ -264,9 +270,11 @@ async def generate_tldr(notes_text: str):
 
     return safe_json_loads(response.choices[0].message.content)
 
-async def generate_flashcards(notes_text: str):
+async def generate_flashcards(notes_text: str, language: str = "English"):
     prompt = f"""
     Create 5 study flashcards from these notes.
+    
+    CRITICAL: Write ALL content strictly in {language}.
     
     Return JSON:
     {{ "flashcards":[{{"question":"","answer":""}}] }}
@@ -283,9 +291,11 @@ async def generate_flashcards(notes_text: str):
 
     return safe_json_loads(response.choices[0].message.content)
 
-async def generate_quiz(notes_text: str):
+async def generate_quiz(notes_text: str, language: str = "English"):
     prompt = f"""
     Create 3 MCQ quiz questions.
+    
+    CRITICAL: Write ALL content strictly in {language}.
     
     Return JSON:
     {{ "quiz":[{{"question":"","options":["A","B","C","D"],"answer":"A"}}] }}
@@ -302,9 +312,11 @@ async def generate_quiz(notes_text: str):
 
     return safe_json_loads(response.choices[0].message.content)
 
-async def generate_interview_questions(notes_text: str):
+async def generate_interview_questions(notes_text: str, language: str = "English"):
     prompt = f"""
     Create 5 interview questions from these notes.
+    
+    CRITICAL: Write ALL content strictly in {language}.
     
     Return JSON:
     {{ "questions":["","",""] }}
@@ -331,10 +343,18 @@ async def chat_with_context(question: str, context_docs: list[str]):
     context = "\n\n".join(context_docs)
 
     prompt = f"""
-You are a helpful study assistant.
+You are a helpful AI study assistant. 
+You are NOT the speaker or the instructor. You are an AI helping the student understand the content.
 
-Use the lecture context below to answer the question.
-If the answer is not directly in the context, use your general knowledge to provide a helpful answer related to the topic.
+Instructions:
+1. Answer the user's question clearly and concisely.
+2. Use the "Lecture Context" below as your primary source of information.
+3. If the answer is found in the context, explain it well.
+4. CRITICAL: If the answer is NOT in the context but is a general knowledge question (e.g., "Who invented X?", "What is Y?", "Who are you?"), answer it using your general knowledge.
+   - DO NOT say "The lecture doesn't mention..." or "Based on my general knowledge...". Just give the answer directly.
+   - Example: User: "Who invented Python?" -> You: "Python was created by Guido van Rossum." (NOT "The lecture doesn't say, but...")
+5. If the question conflicts with the lecture, stick to the lecture facts for context-specific queries.
+6. NEVER roleplay as the teacher/speaker.
 
 Lecture Context:
 {context[:8000]}
