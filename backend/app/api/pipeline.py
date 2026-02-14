@@ -216,3 +216,16 @@ async def api_generate_flashcards(req: ExtrasRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.post("/generate-tldr")
+async def api_generate_tldr(req: ExtrasRequest):
+    """
+    Generate TLDR summary from notes.
+    """
+    from app.services.llm_service import generate_tldr
+    try:
+        data = await generate_tldr(req.notes_text, req.language)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

@@ -365,6 +365,32 @@ async def generate_interview_questions(notes_text: str, language: str = "English
 
 
 
+async def generate_tldr(notes_text: str, language: str = "English"):
+    prompt = f"""
+    Create a "Too Long; Didn't Read" (TLDR) summary of these notes.
+    
+    Structure:
+    1. A concise summary paragraph (2-3 sentences).
+    2. 3-5 key takeaways (bullet points).
+    
+    CRITICAL: Write ALL content strictly in {language}.
+    
+    Return JSON:
+    {{ "tldr": ["Summary paragraph...", "Key takeaway 1", "Key takeaway 2", "Key takeaway 3"] }}
+    
+    Notes:
+    {notes_text[:6000]}
+    """
+    response = await groq_with_retry(
+        client.chat.completions.create,
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+
+    return safe_json_loads(response.choices[0].message.content)
+
+
 async def chat_with_context(question: str, context_docs: list[str]):
     """
     Answer user question using retrieved lecture context.

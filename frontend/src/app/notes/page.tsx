@@ -231,7 +231,7 @@ export default function NotesPage() {
 
   const generateExtra = async (type: "tldr" | "quiz" | "flashcards" | "interview", force: boolean = false) => {
     // Only allow supported types
-    if (["quiz", "flashcards"].indexOf(type) === -1) {
+    if (["quiz", "flashcards", "tldr"].indexOf(type) === -1) {
       console.log("Feature disabled");
       return;
     }
@@ -816,15 +816,31 @@ export default function NotesPage() {
             {outputTab === "tldr" && (
               <div className="space-y-4">
                 {!extras.tldr ? (
-                  <div className="text-center py-12 bg-white/60 backdrop-blur-sm rounded-lg border border-gray-100">
+                  <div
+                    onClick={() => generateExtra("tldr", true)}
+                    className="text-center py-12 bg-white/60 backdrop-blur-sm rounded-lg border border-gray-100 cursor-pointer group hover:bg-white/80 transition"
+                  >
                     {generating === "tldr" ? (
-                      <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
+                      <div className="flex flex-col items-center">
+                        <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
+                        <p className="text-gray-500">Generating TLDR...</p>
+                      </div>
                     ) : (
-                      <Zap className="text-gray-400 mx-auto mb-2" size={32} />
+                      <div className="flex flex-col items-center">
+                        <Zap className="text-gray-400 group-hover:text-yellow-500 transition mx-auto mb-2" size={32} />
+                        <p className="text-gray-500 group-hover:text-gray-700">Click to generate TLDR</p>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            generateExtra("tldr", true);
+                          }}
+                          className="mt-4 px-6 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition shadow-md"
+                        >
+                          Generate TLDR
+                        </button>
+                      </div>
                     )}
-                    <p className="text-gray-500">
-                      {generating === "tldr" ? "Generating TLDR..." : "Click to generate TLDR"}
-                    </p>
                   </div>
                 ) : (
                   <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-100 shadow-lg">
