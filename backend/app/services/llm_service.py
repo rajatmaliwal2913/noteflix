@@ -290,17 +290,22 @@ async def generate_tldr(notes_text: str, language: str = "English"):
 
     return safe_json_loads(response.choices[0].message.content)
 
-async def generate_flashcards(notes_text: str, language: str = "English"):
+async def generate_flashcards(notes_text: str, language: str = "English", count: int = 5, seed: int = 0):
+    variation_prompt = ""
+    if seed > 0:
+        variation_prompt = f"Variation Seed: {seed}. Ensure content differs from previous generations."
+
     prompt = f"""
-    Create 5 study flashcards from these notes.
+    Create exactly {count} study flashcards from these notes.
+    {variation_prompt}
     
     CRITICAL: Write ALL content strictly in {language}.
     
     Return JSON:
-    {{ "flashcards":[{{"question":"","answer":""}}] }}
+    {{ "flashcards":[{{"question":"Term or Concept","answer":"Definition or Explanation"}}] }}
     
     Notes:
-    {notes_text[:4000]}
+    {notes_text[:6000]}
     """
     response = await groq_with_retry(
         client.chat.completions.create,

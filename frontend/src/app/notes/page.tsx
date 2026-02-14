@@ -5,8 +5,51 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, Download, MessageSquare, Send,
   Loader2, Sparkles, FileQuestion, Zap, BookOpen, FileText, Home,
-  CheckCircle2, XCircle, Info
+  CheckCircle2, XCircle, Info, Brain, ChevronLeft, ChevronRight, RotateCw
 } from "lucide-react";
+
+function Flashcard({ data, index, total }: any) {
+  const [isFlipped, setIsFlipped] = useState(false);
+
+  return (
+    <div className="perspective-1000 w-full h-[400px] cursor-pointer group" onClick={() => setIsFlipped(!isFlipped)}>
+      <motion.div
+        initial={false}
+        animate={{ rotateY: isFlipped ? 180 : 0 }}
+        transition={{ duration: 0.6, type: "spring", stiffness: 260, damping: 20 }}
+        className="w-full h-full relative preserve-3d"
+        style={{ transformStyle: "preserve-3d" }}
+      >
+        {/* Front */}
+        <div className="absolute inset-0 backface-hidden bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-xl text-white">
+          <div className="absolute top-4 right-4 bg-white/20 px-3 py-1 rounded-full text-sm font-medium backdrop-blur-sm">
+            {index + 1} / {total}
+          </div>
+          <Brain size={48} className="mb-6 text-white/80" />
+          <h3 className="text-2xl font-bold leading-relaxed">
+            {data.question}
+          </h3>
+          <p className="mt-8 text-white/60 text-sm font-medium animate-pulse flex items-center gap-2">
+            <RotateCw size={14} /> Click to flip
+          </p>
+        </div>
+
+        {/* Back */}
+        <div
+          className="absolute inset-0 backface-hidden bg-white rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-xl border-2 border-purple-100"
+          style={{ transform: "rotateY(180deg)" }}
+        >
+          <div className="absolute top-4 right-4 bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-medium">
+            Answer
+          </div>
+          <p className="text-xl text-gray-800 leading-relaxed font-medium">
+            {data.answer}
+          </p>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -24,6 +67,8 @@ export default function NotesPage() {
     flashcards: null,
     interview: null
   });
+
+  const [flashcardIndex, setFlashcardIndex] = useState(0);
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant", content: string }>>([]);
@@ -185,8 +230,8 @@ export default function NotesPage() {
   };
 
   const generateExtra = async (type: "tldr" | "quiz" | "flashcards" | "interview", force: boolean = false) => {
-    // Only allow quiz for now
-    if (type !== "quiz") {
+    // Only allow supported types
+    if (["quiz", "flashcards"].indexOf(type) === -1) {
       console.log("Feature disabled");
       return;
     }
@@ -210,19 +255,22 @@ export default function NotesPage() {
       // Use the injected language logic
       const language = data.metadata.language || "English";
 
-      // Add random seed if forcing regeneration to get new questions
+      // Add random seed and count
       const seed = force ? Math.floor(Math.random() * 1000) : 0;
+      // Request one flashcard per section, default to 5 if sections not found
+      const count = type === "flashcards" && data.sections ? data.sections.length : 5;
 
       const response = await fetch(`http://127.0.0.1:8000/generate-${type}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes_text: notesText, language, seed }),
+        body: JSON.stringify({ notes_text: notesText, language, seed, count }),
       });
 
       if (!response.ok) throw new Error("Generation failed");
       const result = await response.json();
 
       setExtras((prev: any) => ({ ...prev, [type]: result }));
+      if (type === "flashcards") setFlashcardIndex(0);
     } catch (err) {
       alert(`Failed to generate ${type}`);
     } finally {
@@ -294,6 +342,49 @@ export default function NotesPage() {
           });
           addText(`Answer: ${q.answer}`, 12, true);
           yPos += 8;
+        });
+      } else if (outputTab === "flashcards" && extras.flashcards) {
+        extras.flashcards.flashcards?.forEach((card: any, i: number) => {
+          if (i > 0) doc.addPage();
+
+          const pageWidth = doc.internal.pageSize.width;
+          const pageHeight = doc.internal.pageSize.height;
+          const cardWidth = pageWidth - 40;
+          const cardHeight = 100;
+          const cardX = 20;
+          const cardY = 40;
+
+          // Draw Card Border (Flashcard Look)
+          doc.setDrawColor(100, 100, 100);
+          doc.setFillColor(245, 245, 255);
+          doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 5, 5, "FD");
+
+          // Card Title
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(100, 100, 100);
+          doc.text(`Flashcard ${i + 1}`, cardX + 10, cardY + 15);
+
+          // Question (Centered in Card)
+          doc.setFontSize(16);
+          doc.setTextColor(0, 0, 0); // Black text
+          const qLines = doc.splitTextToSize(card.question, cardWidth - 20);
+          // Simple vertical centering approximation
+          const qY = cardY + (cardHeight / 2) - ((qLines.length * 8) / 2) + 5;
+          doc.text(qLines, pageWidth / 2, qY, { align: "center" });
+
+          // Answer Section Below Card
+          let aY = cardY + cardHeight + 20;
+          doc.setFontSize(14);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(80, 80, 80);
+          doc.text("Answer:", 20, aY);
+
+          aY += 10;
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(0, 0, 0);
+          const aLines = doc.splitTextToSize(card.answer, pageWidth - 40);
+          doc.text(aLines, 20, aY);
         });
       }
       // ... (rest of PDF logic)
@@ -636,24 +727,86 @@ export default function NotesPage() {
                 {!extras.flashcards ? (
                   <div className="text-center py-12 bg-white/60 backdrop-blur-sm rounded-lg border border-gray-100">
                     {generating === "flashcards" ? (
-                      <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
+                      <div className="flex flex-col items-center">
+                        <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
+                        <p className="text-gray-500">Generating flashcards...</p>
+                      </div>
                     ) : (
-                      <FileText className="text-gray-400 mx-auto mb-2" size={32} />
+                      <div
+                        onClick={() => generateExtra("flashcards", true)}
+                        className="cursor-pointer group hover:bg-white/80 transition p-6 rounded-xl"
+                      >
+                        <FileText className="text-purple-400 group-hover:text-purple-600 transition mx-auto mb-2" size={42} />
+                        <p className="text-gray-500 group-hover:text-purple-700">Click to generate flashcards</p>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            generateExtra("flashcards", true);
+                          }}
+                          className="mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition"
+                        >
+                          Generate Flashcards
+                        </button>
+                      </div>
                     )}
-                    <p className="text-gray-500">
-                      {generating === "flashcards" ? "Generating flashcards..." : "Click to generate flashcards"}
-                    </p>
                   </div>
                 ) : (
                   <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-100 shadow-lg">
-                    <h2 className="text-3xl font-bold text-gray-900 mb-6">Flashcards</h2>
-                    <div className="space-y-4">
-                      {extras.flashcards.flashcards?.map((card: any, i: number) => (
-                        <div key={i} className="border border-gray-200 rounded-lg p-5 bg-gray-50 hover:shadow-md transition">
-                          <p className="text-gray-900 font-medium mb-2 text-lg">Q: {card.question}</p>
-                          <p className="text-gray-600 text-base">A: {card.answer}</p>
-                        </div>
-                      ))}
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-3xl font-bold text-gray-900">Flashcards</h2>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setExtras((prev: any) => ({ ...prev, flashcards: null }));
+                            generateExtra('flashcards', true);
+                          }}
+                          className="text-sm text-purple-600 hover:text-purple-700 font-semibold"
+                        >
+                          Regenerate
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-center gap-6">
+                      <div className="w-full relative px-12">
+                        {extras.flashcards.flashcards && extras.flashcards.flashcards.length > 0 && (
+                          <Flashcard
+                            key={flashcardIndex}
+                            data={extras.flashcards.flashcards[flashcardIndex]}
+                            index={flashcardIndex}
+                            total={extras.flashcards.flashcards.length}
+                          />
+                        )}
+
+                        {/* Navigation Buttons */}
+                        <button
+                          onClick={() => setFlashcardIndex(prev => Math.max(0, prev - 1))}
+                          disabled={flashcardIndex === 0}
+                          className="absolute left-0 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white shadow-lg border border-gray-100 text-gray-600 hover:text-purple-600 disabled:opacity-30 disabled:hover:text-gray-600 transition"
+                        >
+                          <ChevronLeft size={24} />
+                        </button>
+
+                        <button
+                          onClick={() => setFlashcardIndex(prev => Math.min(extras.flashcards.flashcards.length - 1, prev + 1))}
+                          disabled={flashcardIndex === extras.flashcards.flashcards.length - 1}
+                          className="absolute right-0 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white shadow-lg border border-gray-100 text-gray-600 hover:text-purple-600 disabled:opacity-30 disabled:hover:text-gray-600 transition"
+                        >
+                          <ChevronRight size={24} />
+                        </button>
+                      </div>
+
+                      {/* Dots Indicator */}
+                      <div className="flex gap-2 mt-2 flex-wrap justify-center">
+                        {extras.flashcards.flashcards?.map((_: any, i: number) => (
+                          <div
+                            key={i}
+                            className={`w-2 h-2 rounded-full transition-all duration-300 ${i === flashcardIndex ? "bg-purple-600 w-6" : "bg-purple-200"
+                              }`}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -718,9 +871,9 @@ export default function NotesPage() {
               </div>
             )}
           </div>
-        </div>
-      </div>
-    </div>
+        </div >
+      </div >
+    </div >
   );
 }
 

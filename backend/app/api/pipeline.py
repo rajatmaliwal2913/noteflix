@@ -190,6 +190,7 @@ class ExtrasRequest(BaseModel):
     notes_text: str
     language: str = "English"
     seed: int = 0
+    count: int = 5
 
 @router.post("/generate-quiz")
 async def api_generate_quiz(req: ExtrasRequest):
@@ -199,6 +200,18 @@ async def api_generate_quiz(req: ExtrasRequest):
     from app.services.llm_service import generate_quiz
     try:
         data = await generate_quiz(req.notes_text, req.language, seed=req.seed)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-flashcards")
+async def api_generate_flashcards(req: ExtrasRequest):
+    """
+    Generate flashcards from notes.
+    """
+    from app.services.llm_service import generate_flashcards
+    try:
+        data = await generate_flashcards(req.notes_text, req.language, count=req.count, seed=req.seed)
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
