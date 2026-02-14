@@ -311,9 +311,14 @@ async def generate_flashcards(notes_text: str, language: str = "English"):
 
     return safe_json_loads(response.choices[0].message.content)
 
-async def generate_quiz(notes_text: str, language: str = "English"):
+async def generate_quiz(notes_text: str, language: str = "English", seed: int = 0):
+    variation_prompt = ""
+    if seed > 0:
+        variation_prompt = f"Variation Seed: {seed}. Ensure these questions are DIFFERENT from previous sets."
+
     prompt = f"""
-    Create 3 MCQ quiz questions.
+    Create 5 MCQ quiz questions.
+    {variation_prompt}
     
     CRITICAL: Write ALL content strictly in {language}.
     

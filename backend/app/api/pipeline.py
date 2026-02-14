@@ -183,3 +183,23 @@ async def process_video(req: VideoProcessRequest):
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
+
+from pydantic import BaseModel
+
+class ExtrasRequest(BaseModel):
+    notes_text: str
+    language: str = "English"
+    seed: int = 0
+
+@router.post("/generate-quiz")
+async def api_generate_quiz(req: ExtrasRequest):
+    """
+    Generate 5 MCQ questions from notes.
+    """
+    from app.services.llm_service import generate_quiz
+    try:
+        data = await generate_quiz(req.notes_text, req.language, seed=req.seed)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
