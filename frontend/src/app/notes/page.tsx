@@ -3,13 +3,24 @@
 import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Download, MessageSquare, Send,
-  Loader2, Sparkles, FileQuestion, Zap, BookOpen, FileText, Home,
-  CheckCircle2, XCircle, Info, Brain, ChevronLeft, ChevronRight, RotateCw
+  ArrowLeft, BookOpen, Download, FileQuestion, FileText, Home,
+  MessageSquare, Send, Sparkles, Zap, ChevronLeft, ChevronRight,
+  Edit2, Save, X, Loader2, CheckCircle2, XCircle, Info, Brain, RotateCw
 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+
+const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
+import "react-quill-new/dist/quill.snow.css";
 
 function Flashcard({ data, index, total }: any) {
   const [isFlipped, setIsFlipped] = useState(false);
+
+  // Reset flip state when data changes (navigation)
+  useEffect(() => {
+    setIsFlipped(false);
+  }, [data]);
 
   return (
     <div className="perspective-1000 w-full h-[400px] cursor-pointer group" onClick={() => setIsFlipped(!isFlipped)}>
@@ -50,8 +61,6 @@ function Flashcard({ data, index, total }: any) {
     </div>
   );
 }
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 
 type OutputTabType = "notes" | "quiz" | "flashcards" | "tldr" | "interview";
 
@@ -59,8 +68,11 @@ export default function NotesPage() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [outputTab, setOutputTab] = useState<OutputTabType>("notes");
   const [generating, setGenerating] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("transcript");
+  const [outputTab, setOutputTab] = useState<OutputTabType>("notes");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedNotes, setEditedNotes] = useState<string | null>(null);
   const [extras, setExtras] = useState<any>({
     tldr: null,
     quiz: null,
@@ -312,24 +324,65 @@ export default function NotesPage() {
 
       // ... (rest of render logic remains same, just ensuring we don't break it)
       if (outputTab === "notes") {
-        data.notes?.forEach((section: any) => {
-          if (!section) return; // Skip nulls
-          addText(section.title, 16, true);
-          yPos += 5;
+        if (editedNotes) {
+          const parser = new DOMParser();
+          const docHtml = parser.parseFromString(editedNotes, 'text/html');
+          const body = docHtml.body;
 
-          if (section.notes?.explanation) {
-            addText(filterGenericText(section.notes.explanation), 12);
+          Array.from(body.children).forEach((node) => {
+            const element = node as HTMLElement;
+            const text = element.innerText || "";
+            // Skip empty elements
+            if (!text.trim()) return;
+
+            if (element.tagName === 'H1') {
+              yPos += 5;
+              addText(text, 22, true);
+              yPos += 8;
+            } else if (element.tagName === 'H2') {
+              yPos += 4;
+              addText(text, 18, true);
+              yPos += 6;
+            } else if (element.tagName === 'H3') {
+              yPos += 2;
+              addText(text, 14, true);
+              yPos += 5;
+            } else if (element.tagName === 'P') {
+              addText(text, 11);
+              yPos += 5;
+            } else if (element.tagName === 'UL' || element.tagName === 'OL') {
+              Array.from(element.children).forEach((li) => {
+                const liText = (li as HTMLElement).innerText;
+                addText(`• ${liText}`, 11);
+                yPos += 4;
+              });
+              yPos += 4;
+            } else {
+              // Default for other tags
+              addText(text, 11);
+              yPos += 5;
+            }
+          });
+        } else {
+          data.notes?.forEach((section: any) => {
+            if (!section) return; // Skip nulls
+            addText(section.title, 16, true);
             yPos += 5;
-          }
 
-          if (section.notes?.bullet_notes && section.notes.bullet_notes.length > 0) {
-            section.notes.bullet_notes.forEach((point: string) => {
-              addText(`• ${filterGenericText(point)}`, 12);
-              yPos += 3;
-            });
-          }
-          yPos += 5;
-        });
+            if (section.notes?.explanation) {
+              addText(filterGenericText(section.notes.explanation), 12);
+              yPos += 5;
+            }
+
+            if (section.notes?.bullet_notes && section.notes.bullet_notes.length > 0) {
+              section.notes.bullet_notes.forEach((point: string) => {
+                addText(`• ${filterGenericText(point)}`, 12);
+                yPos += 3;
+              });
+            }
+            yPos += 5;
+          });
+        }
       } else if (outputTab === "quiz" && extras.quiz) {
         addText("Quiz Questions", 18, true);
         yPos += 10;
@@ -414,6 +467,44 @@ export default function NotesPage() {
       default:
         return "Download";
     }
+  };
+
+  const convertNotesToHtml = () => {
+    if (!data?.notes) return "";
+    let html = "";
+    // Add title
+    if (data.metadata?.title) html += `<h1>${data.metadata.title}</h1>`;
+
+    data.sections?.forEach((sectionMeta: any, idx: number) => {
+      const section = data.notes[idx];
+      if (!section) return;
+
+      html += `<h2>${section.title}</h2>`;
+      if (section.notes.explanation) {
+        html += `<p>${section.notes.explanation}</p>`;
+      }
+      if (section.notes.bullet_notes && section.notes.bullet_notes.length > 0) {
+        html += "<ul>";
+        section.notes.bullet_notes.forEach((point: string) => {
+          html += `<li>${point}</li>`;
+        });
+        html += "</ul>";
+      }
+    });
+    return html;
+  };
+
+  const handleEditToggle = () => {
+    if (!isEditing) {
+      if (!editedNotes) {
+        setEditedNotes(convertNotesToHtml());
+      }
+    }
+    setIsEditing(!isEditing);
+  };
+
+  const handleSaveNotes = () => {
+    setIsEditing(false);
   };
 
   if (loading || !data) {
@@ -578,6 +669,19 @@ export default function NotesPage() {
 
           {/* Action Button */}
           <div className="mb-6">
+            {outputTab === "notes" && (
+              <button
+                onClick={handleEditToggle}
+                className={`w-full mb-3 px-4 py-3 rounded-xl border flex items-center justify-center gap-2 transition font-medium text-sm ${isEditing
+                  ? "bg-red-50 border-red-200 text-red-600 hover:bg-red-100"
+                  : "bg-white border-purple-200 text-purple-600 hover:bg-purple-50"
+                  }`}
+              >
+                {isEditing ? <X size={16} /> : <Edit2 size={16} />}
+                {isEditing ? "Cancel Editing" : "Edit Notes"}
+              </button>
+            )}
+
             <button
               onClick={downloadContent}
               disabled={outputTab !== "notes" && !extras[outputTab]}
@@ -592,81 +696,124 @@ export default function NotesPage() {
           <div className="flex-1 overflow-y-auto pr-2">
             {outputTab === "notes" && (
               <div className="space-y-8">
-                {/* CHANGED TO MAP SECTIONS INSTEAD OF NOTES TO SHOW PENDING STATES CORRECTLY */}
-                {data.sections && Array.isArray(data.sections) && data.sections.length > 0 ? (
-                  data.sections.map((sectionMeta: any, idx: number) => {
-                    // Try to find the corresponding note (indices should match)
-                    const section = data.notes && data.notes.length > idx ? data.notes[idx] : null;
+                {isEditing ? (
+                  <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-100 shadow-lg">
+                    <ReactQuill
+                      theme="snow"
+                      value={editedNotes || ""}
+                      onChange={setEditedNotes}
+                      className="bg-white rounded-lg h-[500px] mb-12 text-gray-900"
+                      modules={{
+                        toolbar: [
+                          [{ 'header': [1, 2, 3, false] }],
+                          ['bold', 'italic', 'underline', 'strike'],
+                          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                          [{ 'color': [] }, { 'background': [] }],
+                          ['clean']
+                        ]
+                      }}
 
-                    if (!section) {
-                      return (
-                        <div key={idx} className="border-b-2 border-purple-200 pb-4">
-                          <h2 className="text-lg font-bold text-gray-500 mb-2 truncate">{sectionMeta.title || `Section ${idx + 1}`}</h2>
-                          <div className="flex items-center gap-3">
-                            <Loader2 className="animate-spin text-purple-600" size={20} />
-                            <span className="text-gray-500 italic">Generating notes...</span>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    const isError = section.notes && typeof section.notes.explanation === 'string' &&
-                      (section.notes.explanation.includes("Unable to generate") || section.notes.explanation.includes("Groq failed"));
-
-                    if (!section.notes || typeof section.notes !== 'object' || isError) {
-                      return (
-                        <div key={idx} className="border-b-2 border-purple-200 pb-4">
-                          <h2 className="text-3xl font-bold text-gray-900 mb-4">{section.title || "Untitled"}</h2>
-                          <div className="flex items-center gap-3 text-gray-500 italic">
-                            <Loader2 className="animate-spin text-purple-600" size={16} />
-                            Generating notes content...
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div key={idx}>
-                        <h2 className="text-3xl font-bold text-gray-900 mb-4 pb-2 border-b-2 border-purple-200">
-                          {section.title}
-                        </h2>
-
-                        {section.notes.explanation &&
-                          typeof section.notes.explanation === 'string' &&
-                          String(section.notes.explanation).trim().length > 0 && (
-                            <p className="text-gray-700 mb-4 leading-relaxed text-lg">
-                              {filterGenericText(String(section.notes.explanation))}
-                            </p>
-                          )}
-                        {section.notes.bullet_notes && Array.isArray(section.notes.bullet_notes) && section.notes.bullet_notes.length > 0 && (
-                          <ul className="space-y-3 mb-6">
-                            {section.notes.bullet_notes.map((point: any, i: number) => {
-                              const pointText = typeof point === 'string' ? point : String(point);
-                              return (
-                                <li key={i} className="flex gap-3 text-gray-700 text-lg">
-                                  <span className="text-purple-600 mt-1 font-bold text-xl">•</span>
-                                  <span>{filterGenericText(pointText)}</span>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
-                        {(!section.notes.explanation ||
-                          typeof section.notes.explanation !== 'string' ||
-                          !String(section.notes.explanation).trim()) &&
-                          (!section.notes.bullet_notes || section.notes.bullet_notes.length === 0) && (
-                            <div className="text-gray-500 italic mb-6 flex items-center gap-2">
-                              <Loader2 className="animate-spin text-purple-600" size={16} />
-                              <span>Generating AI notes for this section...</span>
-                            </div>
-                          )}
-                      </div>
-                    );
-                  })
+                    />
+                    <div className="flex justify-end gap-2 mt-4">
+                      <button
+                        onClick={() => setIsEditing(false)}
+                        className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <X size={16} /> Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveNotes}
+                        className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 flex items-center gap-2"
+                      >
+                        <Save size={16} /> Save Changes
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-500">
-                    <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
-                    <p>Initializing...</p>
+                  <div className="space-y-8">
+                    {editedNotes ? (
+                      <div className="ql-snow">
+                        <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-8 border border-gray-100 shadow-lg ql-editor" dangerouslySetInnerHTML={{ __html: editedNotes }} />
+                      </div>
+                    ) : (
+                      <>
+                        {data.sections && Array.isArray(data.sections) && data.sections.length > 0 ? (
+                          data.sections.map((sectionMeta: any, idx: number) => {
+                            const section = data.notes && data.notes.length > idx ? data.notes[idx] : null;
+
+                            if (!section) {
+                              return (
+                                <div key={idx} className="border-b-2 border-purple-200 pb-4">
+                                  <h2 className="text-lg font-bold text-gray-500 mb-2 truncate">{sectionMeta.title || `Section ${idx + 1}`}</h2>
+                                  <div className="flex items-center gap-3">
+                                    <Loader2 className="animate-spin text-purple-600" size={20} />
+                                    <span className="text-gray-500 italic">Generating notes...</span>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            const isError = section.notes && typeof section.notes.explanation === 'string' &&
+                              (section.notes.explanation.includes("Unable to generate") || section.notes.explanation.includes("Groq failed"));
+
+                            if (!section.notes || typeof section.notes !== 'object' || isError) {
+                              return (
+                                <div key={idx} className="border-b-2 border-purple-200 pb-4">
+                                  <h2 className="text-3xl font-bold text-gray-900 mb-4">{section.title || "Untitled"}</h2>
+                                  <div className="flex items-center gap-3 text-gray-500 italic">
+                                    <Loader2 className="animate-spin text-purple-600" size={16} />
+                                    Generating notes content...
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div key={idx}>
+                                <h2 className="text-3xl font-bold text-gray-900 mb-4 pb-2 border-b-2 border-purple-200">
+                                  {section.title}
+                                </h2>
+
+                                {section.notes.explanation &&
+                                  typeof section.notes.explanation === 'string' &&
+                                  String(section.notes.explanation).trim().length > 0 && (
+                                    <p className="text-gray-700 mb-4 leading-relaxed text-lg">
+                                      {filterGenericText(String(section.notes.explanation))}
+                                    </p>
+                                  )}
+                                {section.notes.bullet_notes && Array.isArray(section.notes.bullet_notes) && section.notes.bullet_notes.length > 0 && (
+                                  <ul className="space-y-3 mb-6">
+                                    {section.notes.bullet_notes.map((point: any, i: number) => {
+                                      const pointText = typeof point === 'string' ? point : String(point);
+                                      return (
+                                        <li key={i} className="flex gap-3 text-gray-700 text-lg">
+                                          <span className="text-purple-600 mt-1 font-bold text-xl">•</span>
+                                          <span>{filterGenericText(pointText)}</span>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                )}
+                                {(!section.notes.explanation ||
+                                  typeof section.notes.explanation !== 'string' ||
+                                  !String(section.notes.explanation).trim()) &&
+                                  (!section.notes.bullet_notes || section.notes.bullet_notes.length === 0) && (
+                                    <div className="text-gray-500 italic mb-6 flex items-center gap-2">
+                                      <Loader2 className="animate-spin text-purple-600" size={16} />
+                                      <span>Refining content...</span>
+                                    </div>
+                                  )}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="text-center py-12 text-gray-500">
+                            <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
+                            <p>Initializing...</p>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -699,23 +846,10 @@ export default function NotesPage() {
                     <div className="flex justify-between items-center mb-6">
                       <h2 className="text-3xl font-bold text-gray-900">Quiz</h2>
                     </div>
-
-                    <div className="space-y-8">
+                    <div className="grid gap-6">
                       {extras.quiz.quiz?.map((q: any, i: number) => (
                         <QuizQuestion key={i} index={i} data={q} />
                       ))}
-                    </div>
-
-                    <div className="mt-8 pt-6 border-t border-gray-200 text-center">
-                      <button
-                        onClick={() => {
-                          setExtras((prev: any) => ({ ...prev, quiz: null }));
-                          generateExtra('quiz', true);
-                        }}
-                        className="px-6 py-3 rounded-xl bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition"
-                      >
-                        Load New Questions
-                      </button>
                     </div>
                   </div>
                 )}
@@ -738,75 +872,45 @@ export default function NotesPage() {
                       >
                         <FileText className="text-purple-400 group-hover:text-purple-600 transition mx-auto mb-2" size={42} />
                         <p className="text-gray-500 group-hover:text-purple-700">Click to generate flashcards</p>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            generateExtra("flashcards", true);
-                          }}
-                          className="mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition"
-                        >
+                        <button className="mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition">
                           Generate Flashcards
                         </button>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-100 shadow-lg">
-                    <div className="flex justify-between items-center mb-6">
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center">
                       <h2 className="text-3xl font-bold text-gray-900">Flashcards</h2>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            setExtras((prev: any) => ({ ...prev, flashcards: null }));
-                            generateExtra('flashcards', true);
-                          }}
-                          className="text-sm text-purple-600 hover:text-purple-700 font-semibold"
-                        >
-                          Regenerate
-                        </button>
+                      <div className="text-sm text-gray-500">
+                        {flashcardIndex + 1} of {extras.flashcards.flashcards?.length}
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-center gap-6">
-                      <div className="w-full relative px-12">
-                        {extras.flashcards.flashcards && extras.flashcards.flashcards.length > 0 && (
-                          <Flashcard
-                            key={flashcardIndex}
-                            data={extras.flashcards.flashcards[flashcardIndex]}
-                            index={flashcardIndex}
-                            total={extras.flashcards.flashcards.length}
-                          />
-                        )}
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={() => setFlashcardIndex(prev => Math.max(0, prev - 1))}
+                        disabled={flashcardIndex === 0}
+                        className="p-3 rounded-full bg-white shadow-md disabled:opacity-50 hover:bg-gray-50 transition"
+                      >
+                        <ChevronLeft size={24} />
+                      </button>
 
-                        {/* Navigation Buttons */}
-                        <button
-                          onClick={() => setFlashcardIndex(prev => Math.max(0, prev - 1))}
-                          disabled={flashcardIndex === 0}
-                          className="absolute left-0 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white shadow-lg border border-gray-100 text-gray-600 hover:text-purple-600 disabled:opacity-30 disabled:hover:text-gray-600 transition"
-                        >
-                          <ChevronLeft size={24} />
-                        </button>
-
-                        <button
-                          onClick={() => setFlashcardIndex(prev => Math.min(extras.flashcards.flashcards.length - 1, prev + 1))}
-                          disabled={flashcardIndex === extras.flashcards.flashcards.length - 1}
-                          className="absolute right-0 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white shadow-lg border border-gray-100 text-gray-600 hover:text-purple-600 disabled:opacity-30 disabled:hover:text-gray-600 transition"
-                        >
-                          <ChevronRight size={24} />
-                        </button>
+                      <div className="flex-1">
+                        <Flashcard
+                          data={extras.flashcards.flashcards[flashcardIndex]}
+                          index={flashcardIndex}
+                          total={extras.flashcards.flashcards.length}
+                        />
                       </div>
 
-                      {/* Dots Indicator */}
-                      <div className="flex gap-2 mt-2 flex-wrap justify-center">
-                        {extras.flashcards.flashcards?.map((_: any, i: number) => (
-                          <div
-                            key={i}
-                            className={`w-2 h-2 rounded-full transition-all duration-300 ${i === flashcardIndex ? "bg-purple-600 w-6" : "bg-purple-200"
-                              }`}
-                          />
-                        ))}
-                      </div>
+                      <button
+                        onClick={() => setFlashcardIndex(prev => Math.min(extras.flashcards.flashcards.length - 1, prev + 1))}
+                        disabled={flashcardIndex === extras.flashcards.flashcards.length - 1}
+                        className="p-3 rounded-full bg-white shadow-md disabled:opacity-50 hover:bg-gray-50 transition"
+                      >
+                        <ChevronRight size={24} />
+                      </button>
                     </div>
                   </div>
                 )}
@@ -816,43 +920,46 @@ export default function NotesPage() {
             {outputTab === "tldr" && (
               <div className="space-y-4">
                 {!extras.tldr ? (
-                  <div
-                    onClick={() => generateExtra("tldr", true)}
-                    className="text-center py-12 bg-white/60 backdrop-blur-sm rounded-lg border border-gray-100 cursor-pointer group hover:bg-white/80 transition"
-                  >
+                  <div className="text-center py-12 bg-white/60 backdrop-blur-sm rounded-lg border border-gray-100">
                     {generating === "tldr" ? (
-                      <div className="flex flex-col items-center">
-                        <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
-                        <p className="text-gray-500">Generating TLDR...</p>
-                      </div>
+                      <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
                     ) : (
-                      <div className="flex flex-col items-center">
-                        <Zap className="text-gray-400 group-hover:text-yellow-500 transition mx-auto mb-2" size={32} />
-                        <p className="text-gray-500 group-hover:text-gray-700">Click to generate TLDR</p>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            generateExtra("tldr", true);
-                          }}
-                          className="mt-4 px-6 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition shadow-md"
-                        >
-                          Generate TLDR
-                        </button>
-                      </div>
+                      <Zap className="text-gray-400 mx-auto mb-2" size={32} />
+                    )}
+                    <p className="text-gray-500">
+                      {generating === "tldr" ? "Generating summary..." : "Click to generate TLDR"}
+                    </p>
+                    {generating !== "tldr" && (
+                      <button
+                        onClick={() => generateExtra("tldr", true)}
+                        className="mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+                      >
+                        Generate TLDR
+                      </button>
                     )}
                   </div>
                 ) : (
-                  <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-100 shadow-lg">
-                    <h2 className="text-3xl font-bold text-gray-900 mb-6">TLDR</h2>
-                    <ul className="space-y-3">
-                      {extras.tldr.tldr?.map((point: string, i: number) => (
-                        <li key={i} className="text-gray-700 flex gap-3 text-lg">
-                          <span className="text-purple-600 font-bold text-xl">•</span>
-                          <span>{filterGenericText(point)}</span>
-                        </li>
-                      ))}
-                    </ul>
+                  <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-8 border border-gray-100 shadow-lg">
+                    <h2 className="text-3xl font-bold text-gray-900 mb-6">TL;DR</h2>
+                    <div className="prose prose-purple max-w-none">
+                      {/* TLDR Rendering Logic */}
+                      <div className="mb-6">
+                        <h3 className="text-xl font-semibold mb-2 text-purple-800">Summary</h3>
+                        <p className="text-gray-700 leading-relaxed text-lg">{extras.tldr.summary}</p>
+                      </div>
+
+                      <div>
+                        <h3 className="text-xl font-semibold mb-2 text-purple-800">Key Takeaways</h3>
+                        <ul className="space-y-3">
+                          {extras.tldr.key_points?.map((point: string, i: number) => (
+                            <li key={i} className="flex gap-3 text-lg text-gray-700">
+                              <span className="text-purple-600 font-bold text-xl">•</span>
+                              <span>{filterGenericText(point)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -870,6 +977,14 @@ export default function NotesPage() {
                     <p className="text-gray-500">
                       {generating === "interview" ? "Generating interview questions..." : "Click to generate interview questions"}
                     </p>
+                    {generating !== "interview" && (
+                      <button
+                        onClick={() => generateExtra("interview", true)}
+                        className="mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+                      >
+                        Generate Interview Questions
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-100 shadow-lg">

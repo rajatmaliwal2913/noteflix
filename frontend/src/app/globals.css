@@ -12,20 +12,17 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
 /* Fix dark-mode autofill + placeholder visibility */
-input, textarea {
+input,
+textarea {
   color: #111827 !important;
   -webkit-text-fill-color: #111827 !important;
 }
@@ -34,4 +31,63 @@ input::placeholder,
 textarea::placeholder {
   color: #9CA3AF !important;
   opacity: 1 !important;
+}
+
+/* Force React Quill editor text color */
+.ql-editor {
+  color: #111827 !important;
+  /* Gray-900 */
+}
+
+.ql-editor p {
+  color: #111827 !important;
+  margin-bottom: 0.5rem;
+}
+
+.ql-editor h1 {
+  font-size: 2em !important;
+  font-weight: bold !important;
+  margin-bottom: 0.75rem;
+  margin-top: 1rem;
+  color: #111827 !important;
+}
+
+.ql-editor h2 {
+  font-size: 1.5em !important;
+  font-weight: bold !important;
+  margin-bottom: 0.5rem;
+  margin-top: 0.75rem;
+  color: #111827 !important;
+}
+
+.ql-editor ul {
+  list-style-type: disc !important;
+  list-style-position: outside !important;
+  padding-left: 1.5em !important;
+  margin-bottom: 1rem;
+}
+
+.ql-editor ol {
+  list-style-type: decimal !important;
+  list-style-position: outside !important;
+  padding-left: 1.5em !important;
+  margin-bottom: 1rem;
+}
+
+.ql-editor li {
+  color: #111827 !important;
+  margin-bottom: 0.25rem;
+}
+
+.ql-editor strong {
+  font-weight: bold !important;
+  color: #111827 !important;
+}
+
+.ql-editor em {
+  font-style: italic !important;
+}
+
+.ql-container {
+  font-size: 1rem;
 }
