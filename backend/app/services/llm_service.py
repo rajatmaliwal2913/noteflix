@@ -155,22 +155,37 @@ async def generate_section_notes_with_title(
     """
     
     # Map format to instruction
-    format_instruction = ""
+    format_rules = ""
     if "Bullet" in format_type or "bullet" in format_type.lower():
-        format_instruction = "Bullet points"
+        format_instruction = "Bullet Points"
+        format_rules = (
+            '- STRICTLY set "explanation" to "" (empty string).\n'
+            '- Provide ALL content in "bullet_notes" as a list of strings.\n'
+            '- DO NOT write any paragraphs.'
+        )
     elif "Paragraph" in format_type or "paragraph" in format_type.lower():
         format_instruction = "Paragraphs"
+        format_rules = (
+            '- STRICTLY set "bullet_notes" to [] (empty list).\n'
+            '- Provide ALL content in "explanation" as coherent paragraphs.\n'
+            '- DO NOT use bullet points.'
+        )
     else:
         format_instruction = "Mixed"
+        format_rules = '- Use both "explanation" and "bullet_notes" for a comprehensive overview.'
     
-    # Map depth to instruction
+    # Map depth to instruction and length constraints
     depth_instruction = ""
+    length_constraint = ""
     if "Concise" in depth or "concise" in depth.lower():
         depth_instruction = "Concise"
+        length_constraint = "Keep the content brief and to the point (under 150 words)."
     elif "Detailed" in depth or "detailed" in depth.lower():
         depth_instruction = "Detailed"
+        length_constraint = "Provide a comprehensive, in-depth explanation covering all nuances (min 400 words)."
     else:
         depth_instruction = "Standard"
+        length_constraint = "Aim for a balanced explanation with key details (approx 200-250 words)."
     
     # Build context instructions based on user preferences
     context_instructions = []
@@ -188,9 +203,14 @@ Format: {format_instruction} | Depth: {depth_instruction} | Tone: {tone} | Langu
 
 Rules:
 - Write ALL content strictly in {language}.
+- CRITICAL: If language is Hindi, use Devanagari script (e.g., "नमस्ते"). DO NOT use Hinglish.
+- CRITICAL: If language is Chinese, use Hanzi (Simplified).
+- CRITICAL: If language is Japanese, use Kanji/Kana.
 - Follow the {format_instruction} format strictly.
+{format_rules}
 - Adopt a {tone} tone.
 - {depth_instruction} content depth.
+- {length_constraint}
 - Write facts directly, no "speaker says" phrases
 - CORRECT spelling errors automatically
 - Use proper brand names and capitalization
@@ -218,7 +238,7 @@ Text:
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,
-        max_tokens=1000,
+        max_tokens=4000,
     )
 
     text = response.choices[0].message.content.strip()

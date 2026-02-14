@@ -154,12 +154,12 @@ export default function ProcessPage() {
               }
               currentData.notes[event.index] = event.note;
               localStorage.setItem("noteflix_data", JSON.stringify(currentData));
-              window.dispatchEvent(new CustomEvent("noteStreamed", { 
-                detail: { 
-                  note: event.note, 
+              window.dispatchEvent(new CustomEvent("noteStreamed", {
+                detail: {
+                  note: event.note,
                   index: event.index,
-                  total: event.total 
-                } 
+                  total: event.total
+                }
               }));
             }
 
@@ -283,7 +283,7 @@ export default function ProcessPage() {
                   <Select title="Depth" value={depth} setValue={setDepth} options={["Concise", "Standard", "Detailed"]} />
                   <Select title="Format" value={format} setValue={setFormat} options={["Bullet Points", "Paragraphs", "Mixed"]} />
                   <Select title="Tone" value={tone} setValue={setTone} options={["Student", "Professional", "Conversational"]} />
-                  <Select title="Language" value={language} setValue={setLanguage} options={["English", "Hindi"]} />
+                  <Select title="Language" value={language} setValue={setLanguage} options={["English", "Hindi", "French", "German", "Chinese", "Spanish"]} />
                 </div>
 
                 <div className="space-y-3">
@@ -373,8 +373,8 @@ function Select({ title, options, value, setValue }: any) {
   return (
     <div>
       <label className="font-semibold text-xs text-gray-500 ml-1 mb-1 block">{title}</label>
-      <select value={value} onChange={(e) => setValue(e.target.value)} className="w-full p-3 text-sm border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-purple-500 outline-none">
-        {options.map((o: string) => <option key={o}>{o}</option>)}
+      <select value={value} onChange={(e) => setValue(e.target.value)} className="w-full p-3 text-sm border border-gray-200 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-purple-500 outline-none">
+        {options.map((o: string) => <option key={o} className="text-gray-900">{o}</option>)}
       </select>
     </div>
   );
