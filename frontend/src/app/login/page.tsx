@@ -53,7 +53,7 @@ export default function LoginPage() {
             initial={{ opacity: 0.4, scale: 0.8 }}
             animate={{ y: [0, 40, 0], x: [0, 20, 0], rotate: [0, 20, -20, 0] }}
             transition={{ duration: 15 + i * 2, repeat: Infinity, ease: "easeInOut", delay: shape.delay }}
-            className={`absolute rounded-full blur-[80px] mix-blend-multiply opacity-30 dark:opacity-10 ${shape.color}`}
+            className={`absolute rounded-full blur-[80px] opacity-30 dark:opacity-20 ${shape.color}`}
             style={{ width: shape.width, height: shape.height, left: shape.x, top: shape.y }}
 
           />
@@ -92,7 +92,7 @@ export default function LoginPage() {
 
             <div className="flex gap-4">
               {["AI Notes", "Smart Quizzes", "Chat with Lectures"].map((f) => (
-                <div key={f} className="bg-white px-5 py-3 rounded-full shadow text-sm font-semibold flex gap-2">
+                <div key={f} className="bg-card px-5 py-3 rounded-full shadow border border-border text-sm font-semibold flex gap-2">
                   <Zap className="w-4 h-4 text-purple-500" /> {f}
                 </div>
               ))}

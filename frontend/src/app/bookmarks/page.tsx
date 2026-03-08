@@ -6,8 +6,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 export default function BookmarksPage() {
+    const router = useRouter();
     const [bookmarks, setBookmarks] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -89,12 +91,15 @@ export default function BookmarksPage() {
                                         className="w-full h-full object-cover"
                                     />
                                     <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                        <Link
-                                            href={`/notes?id=${bookmark.video_id}`} // This assumes notes page can load by ID
-                                            className="p-3 bg-white rounded-full text-purple-600 shadow-xl"
+                                        <div
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                router.push(`/notes?v=${bookmark.video_id}`);
+                                            }}
+                                            className="p-3 bg-white rounded-full text-purple-600 shadow-xl cursor-pointer"
                                         >
                                             <ExternalLink size={24} />
-                                        </Link>
+                                        </div>
                                     </div>
                                 </div>
                                 <h3 className="font-bold text-lg line-clamp-2 mb-2 text-foreground">{bookmark.title}</h3>
