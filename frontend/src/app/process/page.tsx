@@ -202,13 +202,16 @@ export default function ProcessPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] flex items-center justify-center p-10 relative overflow-hidden">
+    <div className="min-h-screen bg-background flex items-center justify-center p-10 relative overflow-hidden">
+
+
 
       {/* 🌈 background glow */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute w-[700px] h-[700px] bg-purple-400/30 blur-[160px] rounded-full -top-60 -left-40" />
-        <div className="absolute w-[600px] h-[600px] bg-blue-400/30 blur-[160px] rounded-full bottom-0 right-0" />
+        <div className="absolute w-[700px] h-[700px] bg-purple-400/20 blur-[160px] rounded-full -top-60 -left-40" />
+        <div className="absolute w-[600px] h-[600px] bg-blue-400/20 blur-[160px] rounded-full bottom-0 right-0" />
       </div>
+
 
       <AnimatePresence mode="wait">
 
@@ -219,31 +222,36 @@ export default function ProcessPage() {
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -40 }}
-            className="bg-white/80 backdrop-blur-2xl p-14 rounded-[40px] shadow-2xl w-[720px] text-center border border-white/40"
+            className="bg-card/80 backdrop-blur-2xl p-14 rounded-[40px] shadow-2xl w-[720px] text-center border border-border"
           >
+
+
             <Sparkles className="mx-auto mb-6 text-purple-600" size={42} />
 
-            <h1 className="text-5xl font-bold mb-4 text-gray-900">
+            <h1 className="text-5xl font-bold mb-4 text-foreground">
               Generate Lecture Notes
             </h1>
 
-            <p className="text-gray-500 mb-10 text-lg">
+            <p className="text-foreground-muted mb-10 text-lg">
               Paste a YouTube lecture and let AI turn it into structured notes.
             </p>
+
 
             <div className="flex gap-4">
               <input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://youtube.com/watch?v=..."
-                className="flex-1 px-6 py-5 text-lg rounded-2xl bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 outline-none focus:ring-2 focus:ring-purple-500"
+                className="flex-1 px-6 py-5 text-lg rounded-2xl bg-card text-foreground placeholder:text-foreground-muted border border-border outline-none focus:ring-2 focus:ring-purple-500"
               />
+
 
               <button
                 onClick={handlePreview}
                 disabled={loadingPreview}
-                className="group px-8 rounded-2xl bg-black text-white font-semibold flex items-center gap-3 hover:bg-gray-900 transition disabled:opacity-50"
+                className="group px-8 rounded-2xl bg-foreground text-background font-semibold flex items-center gap-3 hover:opacity-90 transition disabled:opacity-50"
               >
+
                 {loadingPreview ? <Loader2 className="animate-spin" /> : <Youtube size={20} />}
                 Preview
                 {!loadingPreview && <ArrowRight className="group-hover:translate-x-1 transition" />}
@@ -259,15 +267,18 @@ export default function ProcessPage() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="bg-white/90 backdrop-blur-2xl p-10 rounded-[40px] shadow-2xl w-[1100px] h-[85vh] overflow-hidden flex flex-col border border-white/40"
+            className="bg-card/90 backdrop-blur-2xl p-10 rounded-[40px] shadow-2xl w-[1100px] h-[85vh] overflow-hidden flex flex-col border border-border"
           >
+
+
             <div className="flex gap-10 h-full overflow-hidden">
 
               {/* LEFT: Video & Options */}
               <div className="w-1/2 flex flex-col h-full overflow-y-auto pr-2">
-                <h2 className="text-2xl font-bold mb-4 text-gray-900 flex gap-2 items-center">
+                <h2 className="text-2xl font-bold mb-4 text-foreground flex gap-2 items-center">
                   <Film /> Setup Notes
                 </h2>
+
 
                 {/* Iframe */}
                 <div className="aspect-video rounded-2xl overflow-hidden shadow-lg mb-6 shrink-0">
@@ -303,7 +314,8 @@ export default function ProcessPage() {
                   )}
                 </div>
 
-                <div className="flex-1 overflow-y-auto bg-gray-50 rounded-2xl p-4 border border-gray-100 mb-6">
+                <div className="flex-1 overflow-y-auto bg-slate-100/50 dark:bg-slate-900/50 rounded-2xl p-4 border border-border mb-6">
+
                   {preview?.chapters && preview.chapters.length > 0 ? (
                     <div className="space-y-2">
                       {preview.chapters.map((ch: any, i: number) => (
@@ -320,9 +332,10 @@ export default function ProcessPage() {
                             {selectedIndices.has(i) && <CheckSquare size={14} className="text-white" />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={`font-medium truncate ${selectedIndices.has(i) ? "text-purple-900" : "text-gray-500"}`}>
+                            <p className={`font-medium truncate ${selectedIndices.has(i) ? "text-purple-600" : "text-foreground-muted"}`}>
                               {ch.title}
                             </p>
+
                             <p className="text-xs text-gray-400">
                               {Math.floor(ch.start / 60)}:{Math.floor(ch.start % 60).toString().padStart(2, '0')} - {Math.floor(ch.end / 60)}:{Math.floor(ch.end % 60).toString().padStart(2, '0')}
                             </p>
@@ -342,10 +355,11 @@ export default function ProcessPage() {
                 <div className="flex gap-4 mt-auto">
                   <button
                     onClick={() => setStep("input")}
-                    className="px-6 py-4 rounded-2xl bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition"
+                    className="px-6 py-4 rounded-2xl bg-muted text-foreground font-semibold hover:bg-muted/80 transition"
                   >
                     Back
                   </button>
+
                   <button
                     onClick={generateNotes}
                     className="flex-1 py-4 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold text-lg flex justify-center gap-2 shadow-lg hover:scale-[1.02] transition"
@@ -356,7 +370,8 @@ export default function ProcessPage() {
               </div >
             </div >
           </motion.div >
-        )}
+        )
+        }
 
 
       </AnimatePresence >
@@ -366,28 +381,31 @@ export default function ProcessPage() {
 
 /* reusable components */
 function SectionTitle({ title, icon }: any) {
-  return <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">{icon} {title}</h3>;
+  return <h3 className="text-sm font-bold uppercase tracking-wider text-foreground-muted mb-3 flex items-center gap-2">{icon} {title}</h3>;
 }
+
 
 function Select({ title, options, value, setValue }: any) {
   return (
     <div>
-      <label className="font-semibold text-xs text-gray-500 ml-1 mb-1 block">{title}</label>
-      <select value={value} onChange={(e) => setValue(e.target.value)} className="w-full p-3 text-sm border border-gray-200 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-purple-500 outline-none">
-        {options.map((o: string) => <option key={o} className="text-gray-900">{o}</option>)}
+      <label className="font-semibold text-xs text-foreground-muted ml-1 mb-1 block">{title}</label>
+      <select value={value} onChange={(e) => setValue(e.target.value)} className="w-full p-3 text-sm border border-border rounded-xl bg-card text-foreground focus:ring-2 focus:ring-purple-500 outline-none">
+        {options.map((o: string) => <option key={o} className="text-foreground">{o}</option>)}
       </select>
     </div>
+
   );
 }
 
 function Toggle({ label, value, setValue, icon }: any) {
   return (
-    <div onClick={() => setValue(!value)} className="flex items-center justify-between bg-white border border-gray-100 p-3 rounded-xl cursor-pointer hover:bg-gray-50 transition shadow-sm">
-      <div className="flex items-center gap-3 text-gray-700 text-sm">{icon}<span className="font-medium">{label}</span></div>
-      <div className={`w-10 h-5 rounded-full ${value ? "bg-purple-600" : "bg-gray-200"} relative transition-colors duration-300`}>
+    <div onClick={() => setValue(!value)} className="flex items-center justify-between bg-card border border-border p-3 rounded-xl cursor-pointer hover:bg-card/80 transition shadow-sm">
+      <div className="flex items-center gap-3 text-foreground text-sm">{icon}<span className="font-medium">{label}</span></div>
+      <div className={`w-10 h-5 rounded-full ${value ? "bg-purple-600" : "bg-muted"} relative transition-colors duration-300`}>
         <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 shadow-sm transition-all duration-300 ${value ? "left-[22px]" : "left-0.5"}`} />
       </div>
     </div>
   );
 }
+
 

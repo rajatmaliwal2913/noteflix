@@ -5,11 +5,13 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, BookOpen, Download, FileQuestion, FileText, Home,
   MessageSquare, Send, Sparkles, Zap, ChevronLeft, ChevronRight,
-  Edit2, Save, X, Loader2, CheckCircle2, XCircle, Info, Brain, RotateCw
+  Edit2, Save, X, Loader2, CheckCircle2, XCircle, Info, Brain, RotateCw,
+  Star
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { supabase } from "@/lib/supabaseClient";
 
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
 import "react-quill-new/dist/quill.snow.css";
@@ -47,16 +49,17 @@ function Flashcard({ data, index, total }: any) {
 
         {/* Back */}
         <div
-          className="absolute inset-0 backface-hidden bg-white rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-xl border-2 border-purple-100"
+          className="absolute inset-0 backface-hidden bg-card rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-xl border-2 border-purple-100/20"
           style={{ transform: "rotateY(180deg)" }}
         >
-          <div className="absolute top-4 right-4 bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-sm font-medium">
+          <div className="absolute top-4 right-4 bg-muted text-foreground-muted px-3 py-1 rounded-full text-sm font-medium">
             Answer
           </div>
-          <p className="text-xl text-gray-800 leading-relaxed font-medium">
+          <p className="text-xl text-foreground leading-relaxed font-medium">
             {data.answer}
           </p>
         </div>
+
       </motion.div>
     </div>
   );
@@ -87,6 +90,57 @@ export default function NotesPage() {
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Bookmark state
+  const [isBookmarked, setIsBookmarked] = useState(false);
+
+  useEffect(() => {
+    async function checkBookmark() {
+      if (!data?.metadata?.video_id) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data: bookmark } = await supabase
+        .from("bookmarks")
+        .select("id")
+        .eq("user_id", session.user.id)
+        .eq("video_id", data.metadata.video_id)
+        .single();
+
+      if (bookmark) setIsBookmarked(true);
+    }
+    checkBookmark();
+  }, [data]);
+
+  const toggleBookmark = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return alert("Please log in to bookmark lectures");
+
+    if (isBookmarked) {
+      const { error } = await supabase
+        .from("bookmarks")
+        .delete()
+        .eq("user_id", session.user.id)
+        .eq("video_id", data.metadata.video_id);
+
+      if (!error) setIsBookmarked(false);
+    } else {
+      const { error } = await supabase
+        .from("bookmarks")
+        .insert({
+          user_id: session.user.id,
+          video_id: data.metadata.video_id,
+          title: data.metadata.title,
+          notes_data: data // Save entire payload for offline/quick access
+        });
+
+      if (!error) setIsBookmarked(true);
+      else {
+        console.error("Bookmark error:", error);
+        alert("Failed to bookmark. Make sure the 'bookmarks' table exists.");
+      }
+    }
+  };
 
   useEffect(() => {
     // Check for existing data first
@@ -509,38 +563,51 @@ export default function NotesPage() {
 
   if (loading || !data) {
     return (
-      <div className="min-h-screen bg-[#FDFDFD] flex items-center justify-center relative overflow-hidden">
+      <div className="min-h-screen bg-background flex items-center justify-center relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute w-[700px] h-[700px] bg-purple-400/30 blur-[160px] rounded-full -top-60 -left-40" />
-          <div className="absolute w-[600px] h-[600px] bg-blue-400/30 blur-[160px] rounded-full bottom-0 right-0" />
+          <div className="absolute w-[700px] h-[700px] bg-purple-400/20 blur-[160px] rounded-full -top-60 -left-40" />
+          <div className="absolute w-[600px] h-[600px] bg-blue-400/20 blur-[160px] rounded-full bottom-0 right-0" />
         </div>
         <Loader2 className="animate-spin text-purple-600 relative z-10" size={48} />
       </div>
     );
   }
 
+
   const videoId = data.metadata?.video_id || "";
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] relative overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
+
       {/* ... (background & header) */}
       <div className="absolute inset-0 pointer-events-none fixed">
-        <div className="absolute w-[800px] h-[800px] bg-purple-100/50 blur-[120px] rounded-full -top-40 -right-20" />
-        <div className="absolute w-[600px] h-[600px] bg-blue-100/50 blur-[120px] rounded-full bottom-0 left-0" />
+        <div className="absolute w-[800px] h-[800px] bg-purple-400/5 blur-[120px] rounded-full -top-40 -right-20" />
+        <div className="absolute w-[600px] h-[600px] bg-blue-400/5 blur-[120px] rounded-full bottom-0 left-0" />
       </div>
 
+
       {/* Top Bar */}
-      <div className="border-b border-gray-200 bg-white/80 backdrop-blur-xl sticky top-0 z-50 relative">
+      <div className="border-b border-border bg-card/80 backdrop-blur-xl sticky top-0 z-50 relative">
         <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/process" className="flex items-center gap-2 text-gray-500 hover:text-purple-600 transition">
+          <Link href="/process" className="flex items-center gap-2 text-foreground-muted hover:text-purple-600 transition">
             <ArrowLeft size={18} /> Back
           </Link>
 
-          <h1 className="text-lg font-semibold text-gray-900 truncate max-w-2xl">
+          <h1 className="text-lg font-semibold text-foreground truncate max-w-2xl">
             {data.metadata?.title || "Notes"}
           </h1>
 
+
           <div className="flex gap-3">
+            <button
+              onClick={toggleBookmark}
+              className={`p-2 rounded-lg border transition-all ${isBookmarked
+                ? "bg-yellow-50 border-yellow-200 text-yellow-600 shadow-sm"
+                : "bg-white border-gray-200 text-gray-400 hover:text-yellow-500"
+                }`}
+            >
+              <Star size={20} fill={isBookmarked ? "currentColor" : "none"} />
+            </button>
             <Link
               href="/dashboard"
               className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-sm font-medium transition shadow-lg flex items-center gap-2"
@@ -556,7 +623,8 @@ export default function NotesPage() {
         {/* LEFT COLUMN - Video & Chatbot */}
         <div className="w-1/2 flex flex-col h-full">
           {/* ... (Video Preview & Chatbot same as before) */}
-          <div className="relative aspect-video rounded-2xl overflow-hidden mb-4 bg-white shadow-lg border border-gray-200">
+          <div className="relative aspect-video rounded-2xl overflow-hidden mb-4 bg-card shadow-lg border border-border">
+
             {videoId ? (
               <iframe
                 className="w-full h-full"
@@ -572,14 +640,15 @@ export default function NotesPage() {
           </div>
 
           {/* Chatbot */}
-          <div className="flex-1 flex flex-col bg-white/80 backdrop-blur-xl rounded-2xl border border-gray-100 shadow-lg overflow-hidden">
+          <div className="flex-1 flex flex-col bg-card/50 backdrop-blur-xl rounded-2xl border border-border shadow-lg overflow-hidden">
             {/* ... (Chatbot UI) */}
-            <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50">
+            <div className="px-4 py-3 border-b border-border bg-gradient-to-r from-purple-500/5 to-blue-500/5">
               <div className="flex items-center gap-2">
                 <MessageSquare className="text-purple-600" size={20} />
-                <h3 className="font-semibold text-gray-900">AI Chat Assistant</h3>
+                <h3 className="font-semibold text-foreground">AI Chat Assistant</h3>
               </div>
             </div>
+
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {chatMessages.length === 0 && (
@@ -596,13 +665,14 @@ export default function NotesPage() {
                   <div
                     className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.role === "user"
                       ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-                      : "bg-gray-100 text-gray-900"
+                      : "bg-slate-100 dark:bg-slate-800 text-foreground"
                       }`}
                   >
                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                   </div>
                 </div>
               ))}
+
               {chatLoading && (
                 <div className="flex justify-start">
                   <div className="bg-gray-100 rounded-lg px-4 py-2">
@@ -613,14 +683,15 @@ export default function NotesPage() {
               <div ref={chatEndRef} />
             </div>
 
-            <form onSubmit={handleChatSubmit} className="p-4 border-t border-gray-200">
+            <form onSubmit={handleChatSubmit} className="p-4 border-t border-border">
               <div className="flex gap-2">
                 <input
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Ask a question about the lecture..."
-                  className="flex-1 px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-purple-500 outline-none text-gray-900"
+                  className="flex-1 px-4 py-2 rounded-lg border border-border bg-card focus:ring-2 focus:ring-purple-500 outline-none text-foreground"
                 />
+
                 <button
                   type="submit"
                   disabled={chatLoading || !chatInput.trim()}
@@ -634,9 +705,9 @@ export default function NotesPage() {
         </div>
 
         {/* RIGHT COLUMN - Notes & Actions */}
-        <div className="w-1/2 flex flex-col h-full border-l border-gray-200 pl-6">
+        <div className="w-1/2 flex flex-col h-full border-l border-border pl-6">
           {/* Output Tabs */}
-          <div className="flex gap-1 border-b border-gray-200 mb-4">
+          <div className="flex gap-1 border-b border-border mb-4">
             {[
               { id: "notes" as OutputTabType, label: "Notes", icon: BookOpen },
               { id: "quiz" as OutputTabType, label: "Quiz", icon: FileQuestion },
@@ -652,9 +723,10 @@ export default function NotesPage() {
                 }}
                 className={`px-4 py-2 flex items-center gap-2 text-sm font-medium transition relative ${outputTab === tab.id
                   ? "text-purple-600"
-                  : "text-gray-500 hover:text-gray-700"
+                  : "text-foreground-muted hover:text-foreground"
                   }`}
               >
+
                 <tab.icon size={16} />
                 {tab.label}
                 {outputTab === tab.id && (
@@ -673,9 +745,10 @@ export default function NotesPage() {
               <button
                 onClick={handleEditToggle}
                 className={`w-full mb-3 px-4 py-3 rounded-xl border flex items-center justify-center gap-2 transition font-medium text-sm ${isEditing
-                  ? "bg-red-50 border-red-200 text-red-600 hover:bg-red-100"
-                  : "bg-white border-purple-200 text-purple-600 hover:bg-purple-50"
+                  ? "bg-red-500/10 border-red-500/20 text-red-600 hover:bg-red-500/20"
+                  : "bg-card border-purple-200/20 text-purple-600 hover:bg-purple-500/5"
                   }`}
+
               >
                 {isEditing ? <X size={16} /> : <Edit2 size={16} />}
                 {isEditing ? "Cancel Editing" : "Edit Notes"}
@@ -697,12 +770,13 @@ export default function NotesPage() {
             {outputTab === "notes" && (
               <div className="space-y-8">
                 {isEditing ? (
-                  <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-100 shadow-lg">
+                  <div className="bg-card/50 backdrop-blur-xl rounded-2xl p-6 border border-border shadow-lg">
                     <ReactQuill
                       theme="snow"
                       value={editedNotes || ""}
                       onChange={setEditedNotes}
-                      className="bg-white rounded-lg h-[500px] mb-12 text-gray-900"
+                      className="bg-card rounded-lg h-[500px] mb-12 text-foreground"
+
                       modules={{
                         toolbar: [
                           [{ 'header': [1, 2, 3, false] }],
@@ -733,8 +807,9 @@ export default function NotesPage() {
                   <div className="space-y-8">
                     {editedNotes ? (
                       <div className="ql-snow">
-                        <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-8 border border-gray-100 shadow-lg ql-editor" dangerouslySetInnerHTML={{ __html: editedNotes }} />
+                        <div className="bg-card/50 backdrop-blur-xl rounded-2xl p-8 border border-border shadow-lg ql-editor" dangerouslySetInnerHTML={{ __html: editedNotes }} />
                       </div>
+
                     ) : (
                       <>
                         {data.sections && Array.isArray(data.sections) && data.sections.length > 0 ? (

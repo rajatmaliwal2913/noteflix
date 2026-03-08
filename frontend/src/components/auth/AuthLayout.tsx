@@ -31,10 +31,12 @@ export default function AuthLayout({
 
       {/* RIGHT PANEL */}
       <div className="w-full lg:w-1/2 flex items-center justify-center
-        bg-gradient-to-br from-[#f5f5f7] to-[#f1edea]">
+        bg-background">
 
-        <div className="bg-white/80 backdrop-blur-2xl p-16 rounded-[34px]
-          shadow-[0_40px_120px_rgba(0,0,0,0.25)] w-[520px] relative">
+
+        <div className="bg-card/80 backdrop-blur-2xl p-16 rounded-[34px]
+          shadow-[0_40px_120px_rgba(0,0,0,0.15)] w-[520px] relative border border-border">
+
           {children}
         </div>
 
