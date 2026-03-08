@@ -171,8 +171,12 @@ async def generate_section_notes_with_title(
             '- DO NOT use bullet points.'
         )
     else:
-        format_instruction = "Mixed"
-        format_rules = '- Use both "explanation" and "bullet_notes" for a comprehensive overview.'
+        format_instruction = "Mixed (Balanced)"
+        format_rules = (
+            '- Use "explanation" for high-level concepts and context.\n'
+            '- Use "bullet_notes" for specific facts, data points, or steps.\n'
+            '- CRITICAL: ZERO REPETITION. If a fact is in bullet_notes, do NOT mention it in explanation. If a concept is in explanation, do NOT repeat it in bullet_notes.'
+        )
     
     # Map depth to instruction and length constraints
     depth_instruction = ""
@@ -290,14 +294,19 @@ async def generate_tldr(notes_text: str, language: str = "English"):
 
     return safe_json_loads(response.choices[0].message.content)
 
-async def generate_flashcards(notes_text: str, language: str = "English", count: int = 5, seed: int = 0):
+async def generate_flashcards(notes_text: str, language: str = "English", count: int = 5, seed: int = 0, existing_items: list[str] = None):
     variation_prompt = ""
     if seed > 0:
         variation_prompt = f"Variation Seed: {seed}. Ensure content differs from previous generations."
+    
+    exclusion_prompt = ""
+    if existing_items:
+        exclusion_prompt = f"CRITICAL: Do NOT generate flashcards for these existing items: {', '.join(existing_items)}. Provide entirely new content."
 
     prompt = f"""
     Create exactly {count} study flashcards from these notes.
     {variation_prompt}
+    {exclusion_prompt}
     
     CRITICAL: Write ALL content strictly in {language}.
     
@@ -316,14 +325,19 @@ async def generate_flashcards(notes_text: str, language: str = "English", count:
 
     return safe_json_loads(response.choices[0].message.content)
 
-async def generate_quiz(notes_text: str, language: str = "English", seed: int = 0):
+async def generate_quiz(notes_text: str, language: str = "English", seed: int = 0, existing_items: list[str] = None):
     variation_prompt = ""
     if seed > 0:
         variation_prompt = f"Variation Seed: {seed}. Ensure these questions are DIFFERENT from previous sets."
 
+    exclusion_prompt = ""
+    if existing_items:
+        exclusion_prompt = f"CRITICAL: Avoid these topics/questions already covered: {', '.join(existing_items)}. Focus on other parts of the notes."
+
     prompt = f"""
-    Create 5 MCQ quiz questions.
+    Create 5 UNIQUE MCQ quiz questions.
     {variation_prompt}
+    {exclusion_prompt}
     
     CRITICAL: Write ALL content strictly in {language}.
     
@@ -342,14 +356,31 @@ async def generate_quiz(notes_text: str, language: str = "English", seed: int = 
 
     return safe_json_loads(response.choices[0].message.content)
 
-async def generate_interview_questions(notes_text: str, language: str = "English"):
+async def generate_interview_questions(notes_text: str, language: str = "English", count: int = 5, seed: int = 0, existing_items: list[str] = None):
+    variation_prompt = ""
+    if seed > 0:
+        variation_prompt = f"Variation Seed: {seed}. Ensure these questions are DIFFERENT from previous sets."
+
+    exclusion_prompt = ""
+    if existing_items:
+        exclusion_prompt = f"CRITICAL: Do NOT repeat these questions: {', '.join(existing_items)}."
+
     prompt = f"""
-    Create 5 interview questions from these notes.
+    Create exactly {count} interview questions based on these notes.
+    {variation_prompt}
+    {exclusion_prompt}
     
     CRITICAL: Write ALL content strictly in {language}.
     
-    Return JSON:
-    {{ "questions":["","",""] }}
+    Return ONLY valid JSON:
+    {{ 
+        "questions": [
+            {{
+                "question": "The interview question",
+                "answer": "A comprehensive correct answer to help the user prepare"
+            }}
+        ] 
+    }}
     
     Notes:
     {notes_text[:4000]}

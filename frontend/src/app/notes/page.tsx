@@ -66,7 +66,7 @@ function Flashcard({ data, index, total }: any) {
   );
 }
 
-type OutputTabType = "notes" | "quiz" | "flashcards" | "tldr" | "interview";
+type OutputTabType = "notes" | "quiz" | "flashcards" | "interview";
 
 export default function NotesPage() {
   const router = useRouter();
@@ -89,7 +89,6 @@ export default function NotesPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedNotes, setEditedNotes] = useState<string | null>(null);
   const [extras, setExtras] = useState<any>({
-    tldr: null,
     quiz: null,
     flashcards: null,
     interview: null
@@ -352,7 +351,7 @@ export default function NotesPage() {
 
   const generateExtra = async (type: "tldr" | "quiz" | "flashcards" | "interview", force: boolean = false) => {
     // Only allow supported types
-    if (["quiz", "flashcards", "tldr"].indexOf(type) === -1) {
+    if (["quiz", "flashcards", "interview"].indexOf(type) === -1) {
       console.log("Feature disabled");
       return;
     }
@@ -376,6 +375,18 @@ export default function NotesPage() {
       // Use the injected language logic
       const language = data.metadata.language || "English";
 
+      // Extract existing items to avoid repetition
+      let existingItems: string[] = [];
+      if (extras[type]) {
+        if (type === "quiz") {
+          existingItems = extras.quiz.quiz?.map((q: any) => q.question) || [];
+        } else if (type === "flashcards") {
+          existingItems = extras.flashcards.flashcards?.map((f: any) => f.question) || [];
+        } else if (type === "interview") {
+          existingItems = extras.interview.questions?.map((q: any) => q.question) || [];
+        }
+      }
+
       // Add random seed and count
       const seed = force ? Math.floor(Math.random() * 1000) : 0;
       // Request one flashcard per section, default to 5 if sections not found
@@ -384,13 +395,30 @@ export default function NotesPage() {
       const response = await fetch(`http://127.0.0.1:8000/generate-${type}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes_text: notesText, language, seed, count }),
+        body: JSON.stringify({
+          notes_text: notesText,
+          language,
+          seed,
+          count,
+          existing_items: existingItems
+        }),
       });
 
       if (!response.ok) throw new Error("Generation failed");
       const result = await response.json();
 
-      setExtras((prev: any) => ({ ...prev, [type]: result }));
+      setExtras((prev: any) => {
+        if (type === "quiz" && force && prev.quiz) {
+          return {
+            ...prev,
+            quiz: {
+              ...result,
+              quiz: [...(prev.quiz.quiz || []), ...(result.quiz || [])]
+            }
+          };
+        }
+        return { ...prev, [type]: result };
+      });
       if (type === "flashcards") setFlashcardIndex(0);
     } catch (err) {
       alert(`Failed to generate ${type}`);
@@ -500,6 +528,15 @@ export default function NotesPage() {
           addText(`Answer: ${q.answer}`, 12, true);
           yPos += 8;
         });
+      } else if (outputTab === "interview" && extras.interview) {
+        addText("Interview Preparation", 18, true);
+        yPos += 10;
+        extras.interview.questions?.forEach((q: any, i: number) => {
+          addText(`${i + 1}. Q: ${q.question}`, 13, true);
+          yPos += 5;
+          addText(`A: ${q.answer}`, 12);
+          yPos += 8;
+        });
       } else if (outputTab === "flashcards" && extras.flashcards) {
         extras.flashcards.flashcards?.forEach((card: any, i: number) => {
           if (i > 0) doc.addPage();
@@ -554,8 +591,7 @@ export default function NotesPage() {
       case "notes": return "Download Notes";
       case "quiz": return "Download Quiz";
       case "flashcards": return "Download Flashcards";
-      case "tldr": return "Download TLDR";
-      case "interview": return "Download Interview Questions";
+      case "interview": return "Download Interview Prep";
       default: return "Download";
     }
   };
@@ -665,8 +701,8 @@ export default function NotesPage() {
                   <button
                     onClick={toggleBookmark}
                     className={`p-2 rounded-lg border transition-all ${isBookmarked
-                      ? "bg-yellow-50 border-yellow-200 text-yellow-600 shadow-sm"
-                      : "bg-white border-gray-200 text-gray-400 hover:text-yellow-500"
+                      ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-600 shadow-sm"
+                      : "bg-card border-border text-foreground-muted hover:text-yellow-500"
                       }`}
                   >
                     <Star size={20} fill={isBookmarked ? "currentColor" : "none"} />
@@ -711,8 +747,8 @@ export default function NotesPage() {
 
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     {chatMessages.length === 0 && (
-                      <div className="text-center text-gray-500 py-8">
-                        <MessageSquare className="mx-auto mb-2 text-gray-400" size={32} />
+                      <div className="text-center text-foreground-muted py-8">
+                        <MessageSquare className="mx-auto mb-2 text-foreground-muted/50" size={32} />
                         <p className="text-sm">Ask me anything about this lecture!</p>
                       </div>
                     )}
@@ -761,8 +797,7 @@ export default function NotesPage() {
                     { id: "notes" as OutputTabType, label: "Notes", icon: BookOpen },
                     { id: "quiz" as OutputTabType, label: "Quiz", icon: FileQuestion },
                     { id: "flashcards" as OutputTabType, label: "Flashcards", icon: FileText },
-                    { id: "tldr" as OutputTabType, label: "TLDR", icon: Zap },
-                    { id: "interview" as OutputTabType, label: "Interview Questions", icon: MessageSquare },
+                    { id: "interview" as OutputTabType, label: "Interview", icon: MessageSquare },
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -821,7 +856,7 @@ export default function NotesPage() {
                             }}
                           />
                           <div className="flex justify-end gap-2 mt-4">
-                            <button onClick={() => setIsEditing(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                            <button onClick={() => setIsEditing(false)} className="px-4 py-2 rounded-lg border border-border text-foreground/80 hover:bg-muted flex items-center gap-2">
                               <X size={16} /> Cancel
                             </button>
                             <button onClick={handleSaveNotes} className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 flex items-center gap-2">
@@ -841,18 +876,18 @@ export default function NotesPage() {
                                 if (!section) return null;
                                 return (
                                   <div key={idx}>
-                                    <h2 className="text-3xl font-bold text-gray-900 mb-4 pb-2 border-b-2 border-purple-200">
+                                    <h2 className="text-3xl font-bold text-foreground mb-4 pb-2 border-b-2 border-purple-200/30">
                                       {section.title}
                                     </h2>
                                     {section.notes?.explanation && (
-                                      <p className="text-gray-700 mb-4 leading-relaxed text-lg">
+                                      <p className="text-foreground/80 mb-4 leading-relaxed text-lg">
                                         {filterGenericText(String(section.notes.explanation))}
                                       </p>
                                     )}
                                     {section.notes?.bullet_notes?.length > 0 && (
                                       <ul className="space-y-3 mb-6">
                                         {section.notes.bullet_notes.map((point: any, i: number) => (
-                                          <li key={i} className="flex gap-3 text-gray-700 text-lg">
+                                          <li key={i} className="flex gap-3 text-foreground/80 text-lg">
                                             <span className="text-purple-600 mt-1 font-bold text-xl">•</span>
                                             <span>{filterGenericText(String(point))}</span>
                                           </li>
@@ -872,22 +907,37 @@ export default function NotesPage() {
                   {outputTab === "quiz" && (
                     <div className="space-y-4">
                       {!extras.quiz ? (
-                        <div className="text-center py-12 bg-white/60 backdrop-blur-sm rounded-lg border border-gray-100">
+                        <div className="text-center py-12 bg-card/50 backdrop-blur-sm rounded-lg border border-border">
                           {generating === "quiz" ? (
                             <div className="flex flex-col items-center">
                               <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
-                              <p className="text-gray-500">Generating quiz...</p>
+                              <p className="text-foreground-muted">Generating quiz...</p>
                             </div>
                           ) : (
-                            <div onClick={() => generateExtra("quiz", true)} className="cursor-pointer group hover:bg-white/80 transition p-6 rounded-xl">
+                            <div onClick={() => generateExtra("quiz", true)} className="cursor-pointer group hover:bg-card/80 transition p-6 rounded-xl">
                               <FileQuestion className="text-purple-400 group-hover:text-purple-600 transition mx-auto mb-2" size={42} />
-                              <p className="text-gray-500 group-hover:text-purple-700">Click to generate quiz</p>
+                              <p className="text-foreground-muted group-hover:text-purple-700">Click to generate quiz</p>
                             </div>
                           )}
                         </div>
                       ) : (
-                        <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-100 shadow-lg">
-                          <h2 className="text-3xl font-bold text-gray-900 mb-6">Quiz</h2>
+                        <div className="bg-card/80 backdrop-blur-xl rounded-2xl p-6 border border-border shadow-lg">
+                          <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-3xl font-bold text-foreground">Quiz</h2>
+                            {generating === "quiz" ? (
+                              <div className="flex items-center gap-2 text-purple-600">
+                                <Loader2 className="animate-spin" size={16} />
+                                <span className="text-sm font-medium">Adding...</span>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => generateExtra("quiz", true)}
+                                className="px-4 py-2 rounded-lg bg-purple-600/10 text-purple-600 hover:bg-purple-600/20 text-sm font-semibold transition"
+                              >
+                                + Add More Questions
+                              </button>
+                            )}
+                          </div>
                           <div className="grid gap-6">
                             {extras.quiz.quiz?.map((q: any, i: number) => (
                               <QuizQuestion key={i} index={i} data={q} />
@@ -901,35 +951,35 @@ export default function NotesPage() {
                   {outputTab === "flashcards" && (
                     <div className="space-y-4">
                       {!extras.flashcards ? (
-                        <div className="text-center py-12 bg-white/60 backdrop-blur-sm rounded-lg border border-gray-100">
+                        <div className="text-center py-12 bg-card/50 backdrop-blur-sm rounded-lg border border-border">
                           {generating === "flashcards" ? (
                             <div className="flex flex-col items-center">
                               <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
-                              <p className="text-gray-500">Generating flashcards...</p>
+                              <p className="text-foreground-muted">Generating flashcards...</p>
                             </div>
                           ) : (
-                            <div onClick={() => generateExtra("flashcards", true)} className="cursor-pointer group hover:bg-white/80 transition p-6 rounded-xl">
+                            <div onClick={() => generateExtra("flashcards", true)} className="cursor-pointer group hover:bg-card/80 transition p-6 rounded-xl">
                               <FileText className="text-purple-400 group-hover:text-purple-600 transition mx-auto mb-2" size={42} />
-                              <p className="text-gray-500 group-hover:text-purple-700">Click to generate flashcards</p>
+                              <p className="text-foreground-muted group-hover:text-purple-700">Click to generate flashcards</p>
                             </div>
                           )}
                         </div>
                       ) : (
                         <div className="space-y-6">
                           <div className="flex justify-between items-center">
-                            <h2 className="text-3xl font-bold text-gray-900">Flashcards</h2>
-                            <div className="text-sm text-gray-500">
+                            <h2 className="text-3xl font-bold text-foreground">Flashcards</h2>
+                            <div className="text-sm text-foreground-muted">
                               {flashcardIndex + 1} of {extras.flashcards.flashcards?.length}
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
-                            <button onClick={() => setFlashcardIndex(prev => Math.max(0, prev - 1))} disabled={flashcardIndex === 0} className="p-3 rounded-full bg-white shadow-md disabled:opacity-50">
+                            <button onClick={() => setFlashcardIndex(prev => Math.max(0, prev - 1))} disabled={flashcardIndex === 0} className="p-3 rounded-full bg-card shadow-md disabled:opacity-50 border border-border">
                               <ChevronLeft size={24} />
                             </button>
                             <div className="flex-1">
                               <Flashcard data={extras.flashcards.flashcards[flashcardIndex]} index={flashcardIndex} total={extras.flashcards.flashcards.length} />
                             </div>
-                            <button onClick={() => setFlashcardIndex(prev => Math.min(extras.flashcards.flashcards.length - 1, prev + 1))} disabled={flashcardIndex === extras.flashcards.flashcards.length - 1} className="p-3 rounded-full bg-white shadow-md disabled:opacity-50">
+                            <button onClick={() => setFlashcardIndex(prev => Math.min(extras.flashcards.flashcards.length - 1, prev + 1))} disabled={flashcardIndex === extras.flashcards.flashcards.length - 1} className="p-3 rounded-full bg-card shadow-md disabled:opacity-50 border border-border">
                               <ChevronRight size={24} />
                             </button>
                           </div>
@@ -938,68 +988,40 @@ export default function NotesPage() {
                     </div>
                   )}
 
-                  {outputTab === "tldr" && (
-                    <div className="space-y-4">
-                      {!extras.tldr ? (
-                        <div className="text-center py-12 bg-white/60 backdrop-blur-sm rounded-lg border border-gray-100">
-                          {generating === "tldr" ? (
-                            <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
-                          ) : (
-                            <Zap className="text-gray-400 mx-auto mb-2" size={32} />
-                          )}
-                          <p className="text-gray-500">
-                            {generating === "tldr" ? "Generating summary..." : "Click to generate TLDR"}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-8 border border-gray-100 shadow-lg">
-                          <h2 className="text-3xl font-bold text-gray-900 mb-6">TL;DR</h2>
-                          <div className="prose prose-purple max-w-none">
-                            <div className="mb-6">
-                              <h3 className="text-xl font-semibold mb-2 text-purple-800">Summary</h3>
-                              <p className="text-gray-700 leading-relaxed text-lg">{extras.tldr.summary}</p>
-                            </div>
-                            <div>
-                              <h3 className="text-xl font-semibold mb-2 text-purple-800">Key Takeaways</h3>
-                              <ul className="space-y-3">
-                                {extras.tldr.key_points?.map((point: string, i: number) => (
-                                  <li key={i} className="flex gap-3 text-lg text-gray-700">
-                                    <span className="text-purple-600 font-bold text-xl">•</span>
-                                    <span>{filterGenericText(point)}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   {outputTab === "interview" && (
                     <div className="space-y-4">
                       {!extras.interview ? (
-                        <div className="text-center py-12 bg-white/60 backdrop-blur-sm rounded-lg border border-gray-100">
+                        <div className="text-center py-12 bg-card/50 backdrop-blur-sm rounded-lg border border-border">
                           {generating === "interview" ? (
-                            <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
+                            <div className="flex flex-col items-center">
+                              <Loader2 className="animate-spin text-purple-600 mx-auto mb-2" size={32} />
+                              <p className="text-foreground-muted">Generating interview questions...</p>
+                            </div>
                           ) : (
-                            <MessageSquare className="text-gray-400 mx-auto mb-2" size={32} />
+                            <div onClick={() => generateExtra("interview", true)} className="cursor-pointer group hover:bg-card/80 transition p-6 rounded-xl">
+                              <MessageSquare className="text-purple-400 group-hover:text-purple-600 transition mx-auto mb-2" size={42} />
+                              <p className="text-foreground-muted group-hover:text-purple-700">Click to generate interview preparation</p>
+                            </div>
                           )}
-                          <p className="text-gray-500">
-                            {generating === "interview" ? "Generating interview questions..." : "Click to generate interview questions"}
-                          </p>
                         </div>
                       ) : (
-                        <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-100 shadow-lg">
-                          <h2 className="text-3xl font-bold text-gray-900 mb-6">Interview Questions</h2>
-                          <ul className="space-y-3">
-                            {extras.interview.questions?.map((q: string, i: number) => (
-                              <li key={i} className="text-gray-700 flex gap-3 text-lg">
-                                <span className="text-purple-600 font-bold">{i + 1}.</span>
-                                <span>{filterGenericText(q)}</span>
-                              </li>
+                        <div className="bg-card/80 backdrop-blur-xl rounded-2xl p-6 border border-border shadow-lg">
+                          <h2 className="text-3xl font-bold text-foreground mb-6">Interview Preparation</h2>
+                          <div className="space-y-6">
+                            {extras.interview.questions?.map((item: any, i: number) => (
+                              <div key={i} className="p-6 bg-muted/50 rounded-xl border border-border shadow-sm">
+                                <h3 className="font-bold text-lg text-foreground mb-3 flex gap-3">
+                                  <span className="text-purple-600">{i + 1}.</span>
+                                  {item.question}
+                                </h3>
+                                <div className="pl-8 pt-4 border-t border-border mt-3 italic text-foreground/70">
+                                  <p className="text-sm font-semibold text-purple-600 mb-1">Recommended Answer:</p>
+                                  <p className="text-base leading-relaxed">{item.answer}</p>
+                                </div>
+                              </div>
                             ))}
-                          </ul>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1025,16 +1047,16 @@ function QuizQuestion({ index, data }: any) {
   };
 
   const getOptionClass = (opt: string) => {
-    if (!showAnswer) return "bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700";
-    if (opt === data.answer) return "bg-green-100 border-green-500 text-green-900 font-medium";
-    if (selected === opt && opt !== data.answer) return "bg-red-100 border-red-500 text-red-900";
-    return "bg-gray-50 border-gray-200 text-gray-400 opacity-60";
+    if (!showAnswer) return "bg-muted/50 border-border hover:bg-muted text-foreground/80";
+    if (opt === data.answer) return "bg-green-500/10 border-green-500 text-green-600 font-medium";
+    if (selected === opt && opt !== data.answer) return "bg-red-500/10 border-red-500 text-red-600";
+    return "bg-muted/20 border-border text-foreground-muted opacity-60";
   };
 
   return (
-    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
-      <h3 className="text-lg font-bold text-gray-900 mb-4 flex gap-3">
-        <span className="bg-purple-100 text-purple-700 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm">
+    <div className="bg-card p-6 rounded-xl border border-border shadow-sm transition-all hover:shadow-md">
+      <h3 className="text-lg font-bold text-foreground mb-4 flex gap-3">
+        <span className="bg-purple-600/10 text-purple-600 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm">
           Q{index + 1}
         </span>
         {data.question}
@@ -1057,7 +1079,7 @@ function QuizQuestion({ index, data }: any) {
                   ? "bg-green-500 border-green-500 text-white"
                   : showAnswer && selected === label && label !== data.answer
                     ? "bg-red-500 border-red-500 text-white"
-                    : "border-gray-300 text-gray-500"
+                    : "border-border text-foreground-muted bg-muted/30"
                 }
               `}>
                 {label}
@@ -1074,7 +1096,7 @@ function QuizQuestion({ index, data }: any) {
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
-          className="ml-11 mt-4 p-4 bg-blue-50 text-blue-900 rounded-lg text-sm border border-blue-100 flex gap-2 items-start"
+          className="ml-11 mt-4 p-4 bg-blue-500/10 text-blue-600 rounded-lg text-sm border border-blue-500/20 flex gap-2 items-start"
         >
           <Info size={16} className="mt-0.5" />
           <div>

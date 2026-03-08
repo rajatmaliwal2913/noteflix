@@ -191,15 +191,16 @@ class ExtrasRequest(BaseModel):
     language: str = "English"
     seed: int = 0
     count: int = 5
+    existing_items: list[str] = []
 
 @router.post("/generate-quiz")
 async def api_generate_quiz(req: ExtrasRequest):
     """
-    Generate 5 MCQ questions from notes.
+    Generate UNIQUE MCQ questions from notes.
     """
     from app.services.llm_service import generate_quiz
     try:
-        data = await generate_quiz(req.notes_text, req.language, seed=req.seed)
+        data = await generate_quiz(req.notes_text, req.language, seed=req.seed, existing_items=req.existing_items)
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -207,25 +208,24 @@ async def api_generate_quiz(req: ExtrasRequest):
 @router.post("/generate-flashcards")
 async def api_generate_flashcards(req: ExtrasRequest):
     """
-    Generate flashcards from notes.
+    Generate unique flashcards from notes.
     """
     from app.services.llm_service import generate_flashcards
     try:
-        data = await generate_flashcards(req.notes_text, req.language, count=req.count, seed=req.seed)
+        data = await generate_flashcards(req.notes_text, req.language, count=req.count, seed=req.seed, existing_items=req.existing_items)
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/generate-tldr")
-async def api_generate_tldr(req: ExtrasRequest):
+@router.post("/generate-interview")
+async def api_generate_interview(req: ExtrasRequest):
     """
-    Generate TLDR summary from notes.
+    Generate unique interview questions with answers from notes.
     """
-    from app.services.llm_service import generate_tldr
+    from app.services.llm_service import generate_interview_questions
     try:
-        data = await generate_tldr(req.notes_text, req.language)
+        data = await generate_interview_questions(req.notes_text, req.language, count=req.count, seed=req.seed, existing_items=req.existing_items)
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-

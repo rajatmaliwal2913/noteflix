@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Video as VideoIcon, Clock as ClockIcon, Sparkles as SparklesIcon } from "lucide-react";
+import { Video as VideoIcon, Clock as ClockIcon, Sparkles as SparklesIcon, Trash2 } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 
 export default function DashboardPage() {
@@ -52,6 +52,44 @@ export default function DashboardPage() {
     loadUser();
   }, []);
 
+  const removeLecture = async (id: string, video_id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (
+      !window.confirm(
+        "Are you sure you want to remove this lecture from your library? This will also remove any associated bookmarks."
+      )
+    )
+      return;
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) return;
+
+    // 1. Delete from lectures
+    const { error: lectureError } = await supabase
+      .from("lectures")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", session.user.id);
+
+    if (lectureError) {
+      console.error("Error deleting lecture:", lectureError);
+      alert("Failed to delete lecture.");
+      return;
+    }
+
+    // 2. Delete associated bookmarks
+    await supabase
+      .from("bookmarks")
+      .delete()
+      .eq("video_id", video_id)
+      .eq("user_id", session.user.id);
+
+    // 3. Update local state
+    setLectures((prev) => prev.filter((l) => l.id !== id));
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground flex overflow-hidden">
 
@@ -72,7 +110,7 @@ export default function DashboardPage() {
         {/* Greeting */}
         <div className="mb-10">
           <h1 className="text-5xl font-bold text-foreground">
-            Welcome back{name && `, ${name}`} ✨
+            Welcome back{name ? `, ${name} ` : " "}✨
           </h1>
           <p className="text-foreground-muted mt-2">Ready to learn today?</p>
 
@@ -81,7 +119,7 @@ export default function DashboardPage() {
         {/* STATS */}
         <div className="grid grid-cols-2 gap-6 mb-14">
           <StatCard icon={<VideoIcon />} title="Videos processed" value={lectures.length.toString()} />
-          <StatCard icon={<ClockIcon />} title="Time Saved" value={formatTimeSaved(lectures.length)} />
+          <StatCard icon={<ClockIcon />} title="Time Saved" value={formatTimeSaved(lectures)} />
         </div>
 
         {/* 🚀 HERO CTA */}
@@ -111,8 +149,7 @@ export default function DashboardPage() {
 
               <span className="relative">Generate Notes Now</span>
 
-              <div className="relative w-9 h-9 rounded-full bg-white text-black flex items-center justify-center
-                    group-hover:translate-x-1 transition">
+              <div className="relative w-9 h-9 rounded-full bg-white text-black flex items-center justify-center group-hover:translate-x-1 transition">
                 →
               </div>
             </button>
@@ -171,6 +208,13 @@ export default function DashboardPage() {
                   <h3 className="font-bold text-lg line-clamp-2 mb-2 text-foreground">{lecture.title}</h3>
                   <div className="flex justify-between items-center text-sm text-foreground-muted">
                     <span>{new Date(lecture.created_at).toLocaleDateString()}</span>
+                    <button
+                      onClick={(e) => removeLecture(lecture.id, lecture.video_id, e)}
+                      className="p-2 rounded-lg hover:bg-red-500/10 text-foreground-muted hover:text-red-500 transition-colors"
+                      title="Remove from library"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </div>
                 </motion.div>
               ))}
@@ -184,8 +228,13 @@ export default function DashboardPage() {
   );
 }
 
-function formatTimeSaved(videoCount: number) {
-  const totalMinutes = videoCount * 30; // Assuming 30 mins saved per video
+function formatTimeSaved(lectures: any[]) {
+  const totalSeconds = lectures.reduce((acc, lecture) => {
+    const duration = lecture.metadata?.duration || 0;
+    return acc + duration;
+  }, 0);
+
+  const totalMinutes = Math.floor(totalSeconds / 60);
   const hrs = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
   return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
