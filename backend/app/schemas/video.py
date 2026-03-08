@@ -24,3 +24,8 @@ class VideoProcessRequest(BaseModel):
 class ChatRequest(BaseModel):
     question: str
     transcript: Optional[List[dict]] = None
+
+class CaptureFrameRequest(BaseModel):
+    url: str
+    video_id: str
+    timestamp: float

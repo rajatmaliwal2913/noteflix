@@ -13,9 +13,74 @@ import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import Sidebar from "@/components/Sidebar";
+import YouTube from "react-youtube";
 
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
 import "react-quill-new/dist/quill.snow.css";
+
+const filterGenericText = (text: any): string => {
+  if (typeof text !== 'string') {
+    if (text === null || text === undefined) return '';
+    return String(text);
+  }
+
+  const genericPatterns = [
+    /the speaker discusses?/gi,
+    /the speaker is trying to convey/gi,
+    /the instructor mentions?/gi,
+    /in this video/gi,
+    /according to the video/gi,
+    /the presenter explains?/gi,
+    /the lecturer discusses?/gi,
+    /the speaker highlights?/gi,
+    /the speaker talks about/gi,
+  ];
+
+  let filtered = text;
+  genericPatterns.forEach(pattern => {
+    filtered = filtered.replace(pattern, "");
+  });
+
+  return filtered.trim();
+};
+
+function NoteContent({ text, videoId, onRemove }: { text: string; videoId: string; onRemove?: (timestamp: string) => void }) {
+  if (!text) return null;
+
+  // Render with visual images and handle click for removal
+  const htmlContent = String(text).replace(/\[\[VISUAL:(\d+)\]\]/g, (match, timestamp) => {
+    const url = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${timestamp}.jpg`;
+    return `
+      <div class="visual-container my-6 rounded-2xl overflow-hidden border border-border shadow-md bg-muted/10 group relative" style="width: 100%; display: block; clear: both;">
+        <img src="${url}" alt="Snapshot at ${timestamp}s" class="w-full h-auto object-cover max-h-[500px]" style="display: block;" />
+        <button 
+          data-timestamp="${timestamp}"
+          class="remove-visual-btn absolute top-4 right-4 p-2.5 bg-red-600/90 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition shadow-2xl backdrop-blur-md scale-90 hover:scale-100 active:scale-95 z-50"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        </button>
+        <div class="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/60 to-transparent text-white text-[10px] flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <span>Visual Lecture Snapshot • ${Math.floor(Number(timestamp) / 60)}:${(Number(timestamp) % 60).toString().padStart(2, '0')}</span>
+        </div>
+      </div>
+    `;
+  });
+
+  return (
+    <div
+      style={{ display: 'contents' }}
+      onClick={(e) => {
+        const btn = (e.target as HTMLElement).closest('.remove-visual-btn');
+        if (btn) {
+          e.stopPropagation();
+          const ts = btn.getAttribute('data-timestamp');
+          if (ts) onRemove?.(ts);
+        }
+      }}
+      dangerouslySetInnerHTML={{ __html: htmlContent }}
+    />
+  );
+}
 
 function Flashcard({ data, index, total }: any) {
   const [isFlipped, setIsFlipped] = useState(false);
@@ -93,6 +158,7 @@ export default function NotesPage() {
     flashcards: null,
     interview: null
   });
+  const [processingStatus, setProcessingStatus] = useState("");
 
   const [flashcardIndex, setFlashcardIndex] = useState(0);
 
@@ -101,6 +167,9 @@ export default function NotesPage() {
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<any>(null);
+  const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
+  const quillRef = useRef<any>(null);
 
   // Bookmark state
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -122,6 +191,18 @@ export default function NotesPage() {
     }
     checkBookmark();
   }, [data]);
+
+  // Keyboard shortcut for Snapshot (Alt + S)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleCaptureFrame();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [videoIdFromUrl, data, isEditing, isSnapshotLoading]);
 
   const toggleBookmark = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -250,8 +331,13 @@ export default function NotesPage() {
       }
     };
 
+    const handleProcessingStatus = (e: CustomEvent) => {
+      setProcessingStatus(e.detail.message);
+    };
+
     window.addEventListener("noteStreamed", handleNoteStreamed as unknown as EventListener);
     window.addEventListener("notesUpdated", handleNotesUpdate as unknown as EventListener);
+    window.addEventListener("processingStatus", handleProcessingStatus as unknown as EventListener);
 
     // Poll for updates if still loading
     let interval: NodeJS.Timeout | null = null;
@@ -286,6 +372,7 @@ export default function NotesPage() {
       if (timeout) clearTimeout(timeout);
       window.removeEventListener("noteStreamed", handleNoteStreamed as unknown as EventListener);
       window.removeEventListener("notesUpdated", handleNotesUpdate as unknown as EventListener);
+      window.removeEventListener("processingStatus", handleProcessingStatus as unknown as EventListener);
     };
   }, [router, videoIdFromUrl]);
 
@@ -323,31 +410,105 @@ export default function NotesPage() {
     }
   };
 
-  const filterGenericText = (text: any): string => {
-    if (typeof text !== 'string') {
-      if (text === null || text === undefined) return '';
-      return String(text);
+  const handleCaptureFrame = async () => {
+    if (!playerRef.current || isSnapshotLoading) return;
+
+    setIsSnapshotLoading(true);
+    const player = playerRef.current.getInternalPlayer();
+    const timestamp = await player.getCurrentTime();
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/capture-frame", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          video_id: videoId,
+          timestamp: timestamp
+        }),
+      });
+
+      if (!response.ok) throw new Error("Capture failed");
+      const result = await response.json();
+
+      // If we are editing, we can auto-insert the actual preview image
+      if (isEditing && quillRef.current) {
+        const editor = quillRef.current.getEditor();
+        const selection = editor.getSelection();
+        const insertIndex = selection ? selection.index : editor.getLength();
+
+        const imageUrl = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${Math.floor(timestamp)}.jpg`;
+
+        // Native Quill image insertion for drag-and-drop
+        editor.insertEmbed(insertIndex, 'image', imageUrl);
+
+        // Find the image and add metadata
+        const [imgNode] = editor.getLeaf(insertIndex);
+        if (imgNode && imgNode.domNode) {
+          const img = imgNode.domNode;
+          img.classList.add('visual-snapshot');
+          img.setAttribute('data-timestamp', Math.floor(timestamp));
+          img.style.maxWidth = '100%';
+          img.style.borderRadius = '12px';
+          img.style.margin = '16px 0';
+        }
+
+        // Force update state from editor content
+        setEditedNotes(editor.root.innerHTML);
+      } else if (isEditing) {
+        // Fallback if ref is missed but editing is on
+        const visualTag = `\n[[VISUAL:${Math.floor(timestamp)}]]\n`;
+        setEditedNotes(prev => (prev || "") + visualTag);
+      } else {
+        alert("Snapshot captured! You can now use it in Edit Mode by adding [[VISUAL:" + Math.floor(timestamp) + "]]");
+      }
+    } catch (err) {
+      alert("Failed to capture snapshot");
+    } finally {
+      setIsSnapshotLoading(false);
+    }
+  };
+
+  const handleRemoveVisual = (timestamp: string) => {
+    if (!window.confirm("Are you sure you want to remove this visual?")) return;
+
+    // Remove from editedNotes if exists
+    if (editedNotes) {
+      const regex = new RegExp(`\\[\\[VISUAL:${timestamp}\\]\\]`, 'g');
+      const updated = editedNotes.replace(regex, "");
+      setEditedNotes(updated);
+
+      // Update data and storage to persist
+      const updatedData = { ...data, editedNotes: updated };
+      setData(updatedData);
+      localStorage.setItem("noteflix_data", JSON.stringify(updatedData));
+      return;
     }
 
-    const genericPatterns = [
-      /the speaker discusses?/gi,
-      /the speaker is trying to convey/gi,
-      /the instructor mentions?/gi,
-      /in this video/gi,
-      /according to the video/gi,
-      /the presenter explains?/gi,
-      /the lecturer discusses?/gi,
-      /the speaker highlights?/gi,
-      /the speaker talks about/gi,
-    ];
+    // Otherwise remove from initial data (if possible)
+    const updatedNotes = data.notes?.map((section: any) => {
+      if (!section) return null;
+      let newExplanation = section.notes.explanation;
+      const regex = new RegExp(`\\[\\[VISUAL:${timestamp}\\]\\]`, 'g');
+      newExplanation = newExplanation.replace(regex, "");
 
-    let filtered = text;
-    genericPatterns.forEach(pattern => {
-      filtered = filtered.replace(pattern, "");
+      const newBullets = section.notes.bullet_notes?.map((b: string) => b.replace(regex, ""));
+
+      return {
+        ...section,
+        notes: {
+          ...section.notes,
+          explanation: newExplanation,
+          bullet_notes: newBullets
+        }
+      };
     });
 
-    return filtered.trim();
+    const newData = { ...data, notes: updatedNotes };
+    setData(newData);
+    localStorage.setItem("noteflix_data", JSON.stringify(newData));
   };
+
 
   const generateExtra = async (type: "tldr" | "quiz" | "flashcards" | "interview", force: boolean = false) => {
     // Only allow supported types
@@ -427,6 +588,21 @@ export default function NotesPage() {
     }
   };
 
+  const fetchImageAsBase64 = async (url: string): Promise<string | null> => {
+    try {
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      console.error("Failed to fetch image for PDF", e);
+      return null;
+    }
+  };
+
   const downloadContent = async () => {
     if (!data) return;
 
@@ -438,23 +614,51 @@ export default function NotesPage() {
       const margin = 20;
       const maxWidth = doc.internal.pageSize.width - 2 * margin;
 
-      const addText = (text: string, fontSize: number, isBold: boolean = false) => {
+      const addText = async (text: string, fontSize: number, isBold: boolean = false) => {
         doc.setFontSize(fontSize);
         if (isBold) doc.setFont("helvetica", "bold");
         else doc.setFont("helvetica", "normal");
 
-        const lines = doc.splitTextToSize(text, maxWidth);
-        if (yPos + lines.length * (fontSize * 0.4) > pageHeight - margin) {
-          doc.addPage();
-          yPos = margin;
+        // Split text by [[VISUAL:timestamp]]
+        const segments = text.split(/(\[\[VISUAL:\d+\]\])/g);
+
+        for (const segment of segments) {
+          const visualMatch = segment.match(/\[\[VISUAL:(\d+)\]\]/);
+          if (visualMatch) {
+            const timestamp = visualMatch[1];
+            const imageUrl = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${timestamp}.jpg`;
+            const base64 = await fetchImageAsBase64(imageUrl);
+
+            if (base64) {
+              const imgWidth = 120; // smaller than maxWidth for better PDF look
+              const imgHeight = 67; // 16:9 approx
+
+              if (yPos + imgHeight > pageHeight - margin) {
+                doc.addPage();
+                yPos = margin;
+              }
+
+              const xPos = margin + (maxWidth - imgWidth) / 2;
+              doc.addImage(base64, 'JPEG', xPos, yPos, imgWidth, imgHeight);
+              yPos += imgHeight + 5;
+            }
+            continue;
+          }
+
+          const lines = doc.splitTextToSize(segment, maxWidth);
+          if (yPos + lines.length * (fontSize * 0.4) > pageHeight - margin) {
+            doc.addPage();
+            yPos = margin;
+          }
+          lines.forEach((line: string) => {
+            if (!line.trim()) return;
+            doc.text(line, margin, yPos);
+            yPos += fontSize * 0.4;
+          });
         }
-        lines.forEach((line: string) => {
-          doc.text(line, margin, yPos);
-          yPos += fontSize * 0.4;
-        });
       };
 
-      addText(data.metadata.title || "Notes", 20, true);
+      await addText(data.metadata.title || "Notes", 20, true);
       yPos += 10;
 
       if (outputTab === "notes") {
@@ -463,82 +667,88 @@ export default function NotesPage() {
           const docHtml = parser.parseFromString(editedNotes, 'text/html');
           const body = docHtml.body;
 
-          Array.from(body.children).forEach((node) => {
+          const nodes = Array.from(body.children);
+          for (const node of nodes) {
             const element = node as HTMLElement;
             const text = element.innerText || "";
-            if (!text.trim()) return;
+            if (!text.trim() && !element.innerHTML.includes("[[VISUAL:")) continue;
 
             if (element.tagName === 'H1') {
               yPos += 5;
-              addText(text, 22, true);
+              await addText(text, 22, true);
               yPos += 8;
             } else if (element.tagName === 'H2') {
               yPos += 4;
-              addText(text, 18, true);
+              await addText(text, 18, true);
               yPos += 6;
             } else if (element.tagName === 'H3') {
               yPos += 2;
-              addText(text, 14, true);
+              await addText(text, 14, true);
               yPos += 5;
             } else if (element.tagName === 'P') {
-              addText(text, 11);
+              await addText(element.innerHTML.replace(/<[^>]*>/g, ""), 11);
               yPos += 5;
             } else if (element.tagName === 'UL' || element.tagName === 'OL') {
-              Array.from(element.children).forEach((li) => {
+              const listItems = Array.from(element.children);
+              for (const li of listItems) {
                 const liText = (li as HTMLElement).innerText;
-                addText(`• ${liText}`, 11);
+                await addText(`• ${liText}`, 11);
                 yPos += 4;
-              });
+              }
               yPos += 4;
             } else {
-              addText(text, 11);
+              await addText(text, 11);
               yPos += 5;
             }
-          });
+          }
         } else {
-          data.notes?.forEach((section: any) => {
-            if (!section) return;
-            addText(section.title, 16, true);
+          for (const section of (data.notes || [])) {
+            if (!section) continue;
+            await addText(section.title, 16, true);
             yPos += 5;
 
             if (section.notes?.explanation) {
-              addText(filterGenericText(section.notes.explanation), 12);
+              await addText(filterGenericText(section.notes.explanation), 12);
               yPos += 5;
             }
 
             if (section.notes?.bullet_notes && section.notes.bullet_notes.length > 0) {
-              section.notes.bullet_notes.forEach((point: string) => {
-                addText(`• ${filterGenericText(point)}`, 12);
+              for (const point of section.notes.bullet_notes) {
+                await addText(`• ${filterGenericText(point)}`, 12);
                 yPos += 3;
-              });
+              }
             }
             yPos += 5;
-          });
+          }
         }
       } else if (outputTab === "quiz" && extras.quiz) {
-        addText("Quiz Questions", 18, true);
+        await addText("Quiz Questions", 18, true);
         yPos += 10;
-        extras.quiz.quiz?.forEach((q: any, i: number) => {
-          addText(`Question ${i + 1}: ${q.question}`, 14, true);
+        for (let i = 0; i < extras.quiz.quiz?.length; i++) {
+          const q = extras.quiz.quiz[i];
+          await addText(`Question ${i + 1}: ${q.question}`, 14, true);
           yPos += 5;
-          q.options?.forEach((opt: string, j: number) => {
-            addText(`${String.fromCharCode(65 + j)}. ${opt}`, 12);
+          for (let j = 0; j < q.options?.length; j++) {
+            const opt = q.options[j];
+            await addText(`${String.fromCharCode(65 + j)}. ${opt}`, 12);
             yPos += 3;
-          });
-          addText(`Answer: ${q.answer}`, 12, true);
+          }
+          await addText(`Answer: ${q.answer}`, 12, true);
           yPos += 8;
-        });
+        }
       } else if (outputTab === "interview" && extras.interview) {
-        addText("Interview Preparation", 18, true);
+        await addText("Interview Preparation", 18, true);
         yPos += 10;
-        extras.interview.questions?.forEach((q: any, i: number) => {
-          addText(`${i + 1}. Q: ${q.question}`, 13, true);
+        for (let i = 0; i < extras.interview.questions?.length; i++) {
+          const q = extras.interview.questions[i];
+          await addText(`${i + 1}. Q: ${q.question}`, 13, true);
           yPos += 5;
-          addText(`A: ${q.answer}`, 12);
+          await addText(`A: ${q.answer}`, 12);
           yPos += 8;
-        });
+        }
       } else if (outputTab === "flashcards" && extras.flashcards) {
-        extras.flashcards.flashcards?.forEach((card: any, i: number) => {
+        for (let i = 0; i < extras.flashcards.flashcards?.length; i++) {
+          const card = extras.flashcards.flashcards[i];
           if (i > 0) doc.addPage();
 
           const pageWidth = doc.internal.pageSize.width;
@@ -573,7 +783,7 @@ export default function NotesPage() {
           doc.setTextColor(0, 0, 0);
           const aLines = doc.splitTextToSize(card.answer, pageWidth - 40);
           doc.text(aLines, 20, aY);
-        });
+        }
       }
       const fileName = outputTab === "notes"
         ? `${data.metadata.title || "notes"}.pdf`
@@ -596,13 +806,37 @@ export default function NotesPage() {
     }
   };
 
+  const transformTagsToImages = (html: string) => {
+    if (!html) return "";
+    // Transform specifically for the Editor: using plain <img> tags for native drag support
+    return html.replace(/\[\[VISUAL:(\d+)\]\]/g, (match, timestamp) => {
+      const url = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${timestamp}.jpg`;
+      return `<img src="${url}" class="visual-snapshot" data-timestamp="${timestamp}" style="max-width: 100%; border-radius: 12px; margin: 12px 0; cursor: move;" />`;
+    });
+  };
+
+  const transformImagesToTags = (html: string) => {
+    if (!html) return "";
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const images = doc.querySelectorAll('img.visual-snapshot');
+
+    images.forEach(img => {
+      const timestamp = img.getAttribute('data-timestamp');
+      if (timestamp) {
+        img.replaceWith(`[[VISUAL:${timestamp}]]`);
+      }
+    });
+
+    return doc.body.innerHTML;
+  };
+
   const convertNotesToHtml = () => {
     if (!data?.notes) return "";
     let html = "";
     if (data.metadata?.title) html += `<h1>${data.metadata.title}</h1>`;
 
-    data.sections?.forEach((sectionMeta: any, idx: number) => {
-      const section = data.notes[idx];
+    data.notes?.forEach((section: any) => {
       if (!section) return;
 
       html += `<h2>${section.title}</h2>`;
@@ -623,7 +857,10 @@ export default function NotesPage() {
   const handleEditToggle = () => {
     if (!isEditing) {
       if (!editedNotes) {
-        setEditedNotes(convertNotesToHtml());
+        const initialHtml = convertNotesToHtml();
+        setEditedNotes(transformTagsToImages(initialHtml));
+      } else {
+        setEditedNotes(transformTagsToImages(editedNotes));
       }
     }
     setIsEditing(!isEditing);
@@ -632,7 +869,8 @@ export default function NotesPage() {
   const handleSaveNotes = async () => {
     setIsEditing(false);
 
-    const updatedData = { ...data, editedNotes };
+    const savedHtml = transformImagesToTags(editedNotes || "");
+    const updatedData = { ...data, editedNotes: savedHtml };
     setData(updatedData);
     localStorage.setItem("noteflix_data", JSON.stringify(updatedData));
 
@@ -661,7 +899,7 @@ export default function NotesPage() {
           <div className="h-full flex items-center justify-center p-20">
             <div className="text-center">
               <Loader2 className="animate-spin text-purple-600 mx-auto mb-4" size={48} />
-              <p className="text-foreground-muted animate-pulse">Loading your lecture knowledge...</p>
+              <p className="text-foreground-muted animate-pulse">{processingStatus || "Loading your lecture knowledge..."}</p>
             </div>
           </div>
         ) : !data ? (
@@ -721,17 +959,45 @@ export default function NotesPage() {
             <div className="max-w-[1600px] mx-auto px-6 py-6 flex gap-6 h-[calc(100vh-73px)] relative z-10">
               {/* LEFT COLUMN - Video & Chatbot */}
               <div className="w-1/2 flex flex-col h-full">
-                <div className="relative aspect-video rounded-2xl overflow-hidden mb-4 bg-card shadow-lg border border-border">
-                  {videoId ? (
-                    <iframe
-                      className="w-full h-full"
-                      src={`https://www.youtube.com/embed/${videoId}`}
-                      allowFullScreen
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                      <Sparkles className="text-gray-400" size={48} />
+                <div className="flex flex-col gap-4 mb-4">
+                  <div className="relative rounded-2xl overflow-hidden bg-card shadow-lg border border-border group">
+                    {videoId ? (
+                      <YouTube
+                        videoId={videoId}
+                        ref={playerRef}
+                        className="w-full aspect-video"
+                        opts={{
+                          width: '100%',
+                          height: '100%',
+                          playerVars: {
+                            autoplay: 0,
+                          },
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full aspect-video flex items-center justify-center bg-gray-100">
+                        <Sparkles className="text-gray-400" size={48} />
+                      </div>
+                    )}
+                  </div>
+
+                  {videoId && (
+                    <div className="flex items-center justify-between px-2 bg-muted/20 p-3 rounded-xl border border-border">
+                      <div className="flex flex-col">
+                        <p className="text-sm font-medium text-foreground">Visual Capture Controls</p>
+                        <p className="text-[10px] text-foreground-muted italic">Click button or press <b>Alt + S</b> to snap important moments</p>
+                      </div>
+                      <button
+                        onClick={handleCaptureFrame}
+                        disabled={isSnapshotLoading}
+                        className="relative overflow-hidden group/btn px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl shadow-lg flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                      >
+                        <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-500" />
+                        {isSnapshotLoading ? <Loader2 className="animate-spin" size={18} /> : <Zap size={18} className="fill-current text-yellow-300" />}
+                        <span className="font-semibold text-sm">
+                          {isSnapshotLoading ? "Capturing..." : "Capture Frame"}
+                        </span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -816,13 +1082,26 @@ export default function NotesPage() {
                 {/* Action Button */}
                 <div className="mb-6">
                   {outputTab === "notes" && (
-                    <button
-                      onClick={handleEditToggle}
-                      className={`w-full mb-3 px-4 py-3 rounded-xl border flex items-center justify-center gap-2 transition font-medium text-sm ${isEditing ? "bg-red-500/10 border-red-500/20 text-red-600 hover:bg-red-500/20" : "bg-card border-purple-200/20 text-purple-600 hover:bg-purple-500/5"}`}
-                    >
-                      {isEditing ? <X size={16} /> : <Edit2 size={16} />}
-                      {isEditing ? "Cancel Editing" : "Edit Notes"}
-                    </button>
+                    <div className="space-y-3">
+                      <button
+                        onClick={handleEditToggle}
+                        className={`w-full px-4 py-3 rounded-xl border flex items-center justify-center gap-2 transition font-medium text-sm ${isEditing ? "bg-red-500/10 border-red-500/20 text-red-600 hover:bg-red-500/20" : "bg-card border-purple-200/20 text-purple-600 hover:bg-purple-500/5"}`}
+                      >
+                        {isEditing ? <X size={16} /> : <Edit2 size={16} />}
+                        {isEditing ? "Cancel Editing" : "Edit Notes"}
+                      </button>
+
+                      {isEditing && (
+                        <button
+                          onClick={handleCaptureFrame}
+                          disabled={isSnapshotLoading}
+                          className="w-full px-4 py-3 rounded-xl bg-purple-600/10 border border-purple-200/20 text-purple-600 hover:bg-purple-600/20 transition font-medium text-sm flex items-center justify-center gap-2"
+                        >
+                          {isSnapshotLoading ? <Loader2 className="animate-spin" size={16} /> : <Zap size={16} className="text-yellow-500" />}
+                          Insert Snapshot at Playhead
+                        </button>
+                      )}
+                    </div>
                   )}
                   <button
                     onClick={downloadContent}
@@ -841,6 +1120,8 @@ export default function NotesPage() {
                       {isEditing ? (
                         <div className="bg-card/50 backdrop-blur-xl rounded-2xl p-6 border border-border shadow-lg">
                           <ReactQuill
+                            // @ts-ignore
+                            ref={quillRef}
                             theme="snow"
                             value={editedNotes || ""}
                             onChange={setEditedNotes}
@@ -868,7 +1149,9 @@ export default function NotesPage() {
                         <div className="space-y-8">
                           {editedNotes ? (
                             <div className="ql-snow">
-                              <div className="bg-card/50 backdrop-blur-xl rounded-2xl p-8 border border-border shadow-lg ql-editor" dangerouslySetInnerHTML={{ __html: editedNotes }} />
+                              <div className="bg-card/50 backdrop-blur-xl rounded-2xl p-8 border border-border shadow-lg ql-editor">
+                                <NoteContent text={editedNotes} videoId={videoId} onRemove={handleRemoveVisual} />
+                              </div>
                             </div>
                           ) : (
                             <>
@@ -879,17 +1162,19 @@ export default function NotesPage() {
                                     <h2 className="text-3xl font-bold text-foreground mb-4 pb-2 border-b-2 border-purple-200/30">
                                       {section.title}
                                     </h2>
-                                    {section.notes?.explanation && (
-                                      <p className="text-foreground/80 mb-4 leading-relaxed text-lg">
-                                        {filterGenericText(String(section.notes.explanation))}
-                                      </p>
-                                    )}
+                                    <div className="text-foreground/80 mb-6 leading-relaxed text-lg">
+                                      <NoteContent text={String(section.notes.explanation)} videoId={videoId} onRemove={handleRemoveVisual} />
+                                    </div>
                                     {section.notes?.bullet_notes?.length > 0 && (
-                                      <ul className="space-y-3 mb-6">
+                                      <ul className="space-y-4 mb-8">
                                         {section.notes.bullet_notes.map((point: any, i: number) => (
-                                          <li key={i} className="flex gap-3 text-foreground/80 text-lg">
-                                            <span className="text-purple-600 mt-1 font-bold text-xl">•</span>
-                                            <span>{filterGenericText(String(point))}</span>
+                                          <li key={i} className="flex flex-col gap-2">
+                                            <div className="flex gap-3 text-foreground/80 text-lg">
+                                              <span className="text-purple-600 mt-1 font-bold text-xl inline-block shrink-0">•</span>
+                                              <div className="flex-1">
+                                                <NoteContent text={String(point)} videoId={videoId} onRemove={handleRemoveVisual} />
+                                              </div>
+                                            </div>
                                           </li>
                                         ))}
                                       </ul>

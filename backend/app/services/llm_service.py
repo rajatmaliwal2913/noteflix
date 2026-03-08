@@ -147,12 +147,23 @@ async def generate_section_notes_with_title(
     tone: str,
     language: str,
     include_visuals: bool,
-    include_code: bool
+    include_code: bool,
+    visual_resources: list[dict] = None
 ):
     """
     Generate title, summary, and notes in ONE call for speed.
     Uses chapter title as hint but can improve it.
     """
+    
+    # Visuals Context
+    visual_hint = ""
+    if (include_visuals or include_code) and visual_resources:
+        available_ts = [v["timestamp"] for v in visual_resources]
+        visual_hint = (
+            f"\n- AVAILABLE VISUALS (Timestamps): {available_ts}\n"
+            "- CRITICAL: If a visual is relevant to a specific concept, embed it on its OWN line using: [[VISUAL:timestamp]].\n"
+            "- Only use timestamps from the list provided above."
+        )
     
     # Map format to instruction
     format_rules = ""
@@ -221,6 +232,7 @@ Rules:
 - Title should be concise and descriptive
 - Return ONLY the JSON object, no explanations or markdown
 - {context_note}
+{visual_hint}
 
 Required JSON format (return exactly this structure):
 {{

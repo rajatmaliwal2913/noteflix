@@ -4,8 +4,16 @@ from fastapi.middleware.cors import CORSMiddleware
 # 👇 IMPORTANT — correct import path
 from app.api.pipeline import router as pipeline_router
 from app.api.chat import router as chat_router
+from fastapi.staticfiles import StaticFiles
+import os
 
 app = FastAPI(title="Noteflix API")
+
+# Ensure static/visuals exists
+os.makedirs("static/visuals", exist_ok=True)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # CORS for Next.js frontend
 app.add_middleware(

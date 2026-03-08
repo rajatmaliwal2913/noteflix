@@ -4,11 +4,12 @@ from fastapi.responses import StreamingResponse
 import time
 import json
 import asyncio
-from app.schemas.video import VideoProcessRequest, VideoRequest
+from app.schemas.video import VideoProcessRequest, VideoRequest, CaptureFrameRequest
 from app.services.transcript_service import generate_transcript, get_video_metadata
 from app.services.section_service import generate_sections
 from app.services.notes_service import generate_notes_for_sections
 from app.services.embedding_service import create_embeddings_for_sections
+from app.services.visual_service import capture_specific_frame
 
 router = APIRouter()
 
@@ -23,6 +24,23 @@ async def preview_video(req: VideoRequest):
         return data
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/capture-frame")
+async def capture_frame(req: CaptureFrameRequest):
+    """
+    Captures a specific frame from the video.
+    """
+    try:
+        # Run in thread as it's a blocking CV2 call
+        url = await asyncio.to_thread(
+            capture_specific_frame, req.url, req.video_id, req.timestamp
+        )
+        if not url:
+            raise HTTPException(status_code=500, detail="Failed to capture frame")
+        return {"url": url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/process-video")
@@ -77,18 +95,30 @@ async def process_video(req: VideoProcessRequest):
             # ---------------------------------------------------
             # 3️⃣ NOTES (Generate with title in one call, stream as ready)
             # ---------------------------------------------------
+            visual_resources = [] # Manual capture handled via /capture-frame
+
+            # ---------------------------------------------------
+            # 4️⃣ NOTES (Generate with title in one call, stream as ready)
+            # ---------------------------------------------------
             yield json.dumps({"status": "generating_notes", "message": "Generating notes..."}) + "\n"
             
             # Stream notes as they're generated
             async def process_and_stream_section(section, index):
                 from app.services.llm_service import generate_section_notes_with_title
                 try:
+                    # Filter visuals relevant to this section's time range
+                    section_visuals = [
+                        v for v in visual_resources 
+                        if section["start"] <= v["timestamp"] <= section["end"]
+                    ]
+
                     result = await generate_section_notes_with_title(
                         section["text"],
                         section.get("title", ""),
                         depth, format_type, tone, language,
                         include_visuals=req.include_visuals,
-                        include_code=req.include_code
+                        include_code=req.include_code,
+                        visual_resources=section_visuals
                     )
                     # Validate result structure
                     if not isinstance(result, dict):
@@ -179,7 +209,7 @@ async def process_video(req: VideoProcessRequest):
 
         except Exception as e:
             print(f"❌ Pipeline Error: {e}")
-            yield json.dumps({"status": "error", "message": str(e)}) + "\n"
+            yield json.dumps({"status": "error", "message": f"PIPELINE_ERROR: {str(e)}"}) + "\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 

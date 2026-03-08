@@ -136,6 +136,16 @@ export default function ProcessPage() {
           try {
             const event = JSON.parse(line);
 
+            // Status events (Visual Extraction)
+            if (event.status === "extracting_visuals" || event.status === "visuals_done" || event.status === "generating_notes") {
+              window.dispatchEvent(new CustomEvent("processingStatus", {
+                detail: {
+                  status: event.status,
+                  message: event.message
+                }
+              }));
+            }
+
             // Stream metadata/transcript immediately
             if (event.status === "metadata_ready") {
               const currentData = JSON.parse(localStorage.getItem("noteflix_data") || "{}");
@@ -297,10 +307,6 @@ export default function ProcessPage() {
                   <Select title="Language" value={language} setValue={setLanguage} options={["English", "Hindi", "French", "German", "Chinese", "Spanish"]} />
                 </div>
 
-                <div className="space-y-3">
-                  <Toggle label="Include Visuals" value={includeVisuals} setValue={setIncludeVisuals} icon={<Image size={16} />} />
-                  <Toggle label="Include Code" value={includeCode} setValue={setIncludeCode} icon={<Code size={16} />} />
-                </div>
               </div >
 
               {/* RIGHT: Chapter Selection */}
