@@ -21,6 +21,10 @@ __pycache__/
 *.webm
 *.mp4
 
+# Captured Snapshots
+*.jpg
+backend/static/visuals/
+
 # OS junk
 .DS_Store
 
