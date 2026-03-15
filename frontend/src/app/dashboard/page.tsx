@@ -230,8 +230,12 @@ export default function DashboardPage() {
 
 function formatTimeSaved(lectures: any[]) {
   const totalSeconds = lectures.reduce((acc, lecture) => {
-    const duration = lecture.metadata?.duration || 0;
-    return acc + duration;
+    // Check multiple paths for duration
+    const duration =
+      lecture.metadata?.duration ||
+      lecture.notes_data?.metadata?.duration ||
+      0;
+    return acc + Number(duration);
   }, 0);
 
   const totalMinutes = Math.floor(totalSeconds / 60);

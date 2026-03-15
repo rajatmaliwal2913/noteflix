@@ -28,6 +28,8 @@ def get_video_metadata(url: str):
         "quiet": True,
         "skip_download": True,
         "nocheckcertificate": True,
+        "noplaylist": True,       # Extract single video, not playlist
+        "extract_flat": False,    # Get full video info
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:

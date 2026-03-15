@@ -105,60 +105,71 @@ async def process_video(req: VideoProcessRequest):
             # Stream notes as they're generated
             async def process_and_stream_section(section, index):
                 from app.services.llm_service import generate_section_notes_with_title
-                try:
-                    # Filter visuals relevant to this section's time range
-                    section_visuals = [
-                        v for v in visual_resources 
-                        if section["start"] <= v["timestamp"] <= section["end"]
-                    ]
+                max_attempts = 8  # Keep retrying on failure
+                
+                for attempt in range(max_attempts):
+                    try:
+                        # Filter visuals relevant to this section's time range
+                        section_visuals = [
+                            v for v in visual_resources 
+                            if section["start"] <= v["timestamp"] <= section["end"]
+                        ]
 
-                    result = await generate_section_notes_with_title(
-                        section["text"],
-                        section.get("title", ""),
-                        depth, format_type, tone, language,
-                        include_visuals=req.include_visuals,
-                        include_code=req.include_code,
-                        visual_resources=section_visuals
-                    )
-                    # Validate result structure
-                    if not isinstance(result, dict):
-                        raise ValueError(f"Invalid result type: {type(result)}")
-                    
-                    note_item = {
-                        "title": result.get("title", section.get("title", "Untitled")),
-                        "summary": result.get("summary", ""),
-                        "start": section["start"],
-                        "end": section["end"],
-                        "notes": {
-                            "explanation": result.get("explanation", "") or "",
-                            "bullet_notes": result.get("bullet_notes", []) or [],
-                            "examples": result.get("examples", []) or [],
-                            "key_concepts": result.get("key_concepts", []) or [],
-                            "difficulty": result.get("difficulty", "Intermediate")
+                        result = await generate_section_notes_with_title(
+                            section["text"],
+                            section.get("title", ""),
+                            depth, format_type, tone, language,
+                            include_visuals=req.include_visuals,
+                            include_code=req.include_code,
+                            visual_resources=section_visuals
+                        )
+                        # Validate result structure
+                        if not isinstance(result, dict):
+                            raise ValueError(f"Invalid result type: {type(result)}")
+                        
+                        note_item = {
+                            "title": result.get("title", section.get("title", "Untitled")),
+                            "summary": result.get("summary", ""),
+                            "start": section["start"],
+                            "end": section["end"],
+                            "notes": {
+                                "explanation": result.get("explanation", "") or "",
+                                "bullet_notes": result.get("bullet_notes", []) or [],
+                                "examples": result.get("examples", []) or [],
+                                "key_concepts": result.get("key_concepts", []) or [],
+                                "difficulty": result.get("difficulty", "Intermediate")
+                            }
                         }
+                        if attempt > 0:
+                            print(f"✅ Section '{section.get('title', 'section')}' succeeded on attempt {attempt + 1}")
+                        return (index, note_item)
+                    except Exception as e:
+                        error_msg = str(e)
+                        print(f"❌ Error for section '{section.get('title', 'section')}' (attempt {attempt + 1}/{max_attempts}): {error_msg}")
+                        
+                        if attempt < max_attempts - 1:
+                            wait_time = min(5 * (2 ** attempt), 60)  # 5, 10, 20, 40, 60...
+                            print(f"🔄 Retrying '{section.get('title', 'section')}' in {wait_time}s...")
+                            await asyncio.sleep(wait_time)
+                
+                # Final fallback (after 8 attempts - very unlikely)
+                import traceback
+                print(f"⚠️ All attempts exhausted for '{section.get('title', 'section')}'")
+                print(f"   Traceback: {traceback.format_exc()}")
+                note_item = {
+                    "title": section.get("title", "Untitled"),
+                    "summary": "",
+                    "start": section["start"],
+                    "end": section["end"],
+                    "notes": {
+                        "explanation": "This section could not be generated. Please try again.",
+                        "bullet_notes": [],
+                        "examples": [],
+                        "key_concepts": [],
+                        "difficulty": "Unknown"
                     }
-                    return (index, note_item)
-                except Exception as e:
-                    import traceback
-                    error_msg = str(e)
-                    print(f"❌ Error generating note for '{section.get('title', 'section')}': {error_msg}")
-                    print(f"   Traceback: {traceback.format_exc()}")
-                    
-                    # Return fallback structure with section title
-                    note_item = {
-                        "title": section.get("title", "Untitled"),
-                        "summary": f"Note generation failed: {error_msg[:100]}",
-                        "start": section["start"],
-                        "end": section["end"],
-                        "notes": {
-                            "explanation": f"Unable to generate notes for this section. Error: {error_msg[:200]}",
-                            "bullet_notes": [],
-                            "examples": [],
-                            "key_concepts": [],
-                            "difficulty": "Unknown"
-                        }
-                    }
-                    return (index, note_item)
+                }
+                return (index, note_item)
             
             # Process all sections in parallel and stream results as they complete
             tasks = [process_and_stream_section(s, i) for i, s in enumerate(sections)]

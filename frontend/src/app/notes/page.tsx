@@ -44,40 +44,113 @@ const filterGenericText = (text: any): string => {
   return filtered.trim();
 };
 
-function NoteContent({ text, videoId, onRemove }: { text: string; videoId: string; onRemove?: (timestamp: string) => void }) {
+// Renders plain text notes with [[VISUAL:timestamp]] tags as image cards
+function NoteContent({ text, videoId }: { text: string; videoId: string }) {
   if (!text) return null;
 
-  // Render with visual images and handle click for removal
-  const htmlContent = String(text).replace(/\[\[VISUAL:(\d+)\]\]/g, (match, timestamp) => {
+  const parts = String(text).split(/(\[\[VISUAL:\d+\]\])/g);
+
+  return (
+    <>
+      {parts.map((part, i) => {
+        const visualMatch = part.match(/\[\[VISUAL:(\d+)\]\]/);
+        if (visualMatch) {
+          const timestamp = visualMatch[1];
+          const imageUrl = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${timestamp}.jpg`;
+          return (
+            <div key={i} className="my-6 rounded-2xl overflow-hidden border border-border shadow-md bg-muted/10" style={{ width: '100%' }}>
+              <img
+                src={imageUrl}
+                alt={`Visual at ${timestamp}s`}
+                className="w-full h-auto object-cover"
+                style={{ maxHeight: '500px', display: 'block' }}
+                onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
+              />
+            </div>
+          );
+        }
+        const filteredPart = filterGenericText(part);
+        if (!filteredPart) return null;
+        return <span key={i} dangerouslySetInnerHTML={{ __html: filteredPart }} />;
+      })}
+    </>
+  );
+}
+
+// Renders saved HTML (from Quill editor) with visual tags replaced by image cards + delete buttons
+// Uses real DOM event listeners for delete functionality
+function SavedNotesRenderer({ html, videoId, onRemove }: { html: string; videoId: string; onRemove: (timestamp: string) => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Replace [[VISUAL:timestamp]] tags in the saved HTML with image cards
+  const processedHtml = String(html).replace(/\[\[VISUAL:(\d+)\]\]/g, (match, timestamp) => {
     const url = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${timestamp}.jpg`;
     return `
-      <div class="visual-container my-6 rounded-2xl overflow-hidden border border-border shadow-md bg-muted/10 group relative" style="width: 100%; display: block; clear: both;">
-        <img src="${url}" alt="Snapshot at ${timestamp}s" class="w-full h-auto object-cover max-h-[500px]" style="display: block;" />
-        <button 
-          data-timestamp="${timestamp}"
-          class="remove-visual-btn absolute top-4 right-4 p-2.5 bg-red-600/90 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition shadow-2xl backdrop-blur-md scale-90 hover:scale-100 active:scale-95 z-50"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+      <div class="visual-card" data-visual-ts="${timestamp}" style="position:relative; width:100%; margin:24px 0; border-radius:16px; overflow:hidden; border:1px solid var(--border, #e5e7eb); box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);">
+        <img src="${url}" alt="Snapshot at ${timestamp}s" style="width:100%; height:auto; max-height:500px; object-fit:cover; display:block;" />
+        <button class="visual-delete-btn" data-delete-ts="${timestamp}" style="position:absolute; top:12px; right:12px; width:36px; height:36px; background:rgba(220,38,38,0.9); color:white; border:none; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s; z-index:99; box-shadow:0 2px 8px rgba(0,0,0,0.3);" title="Delete Snapshot">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>
-        <div class="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/60 to-transparent text-white text-[10px] flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <span>Visual Lecture Snapshot • ${Math.floor(Number(timestamp) / 60)}:${(Number(timestamp) % 60).toString().padStart(2, '0')}</span>
+        <div style="position:absolute; bottom:0; left:0; right:0; padding:10px 14px; background:linear-gradient(to top, rgba(0,0,0,0.6), transparent); color:white; font-size:11px; opacity:0; transition:opacity 0.2s;" class="visual-overlay">
+          Visual Snapshot • ${Math.floor(Number(timestamp) / 60)}:${(Number(timestamp) % 60).toString().padStart(2, '0')}
         </div>
       </div>
     `;
   });
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    // Show/hide delete button and overlay on hover
+    const handleMouseOver = (e: MouseEvent) => {
+      const card = (e.target as HTMLElement).closest('.visual-card');
+      if (card) {
+        const btn = card.querySelector('.visual-delete-btn') as HTMLElement;
+        const overlay = card.querySelector('.visual-overlay') as HTMLElement;
+        if (btn) btn.style.opacity = '1';
+        if (overlay) overlay.style.opacity = '1';
+      }
+    };
+    const handleMouseOut = (e: MouseEvent) => {
+      const card = (e.target as HTMLElement).closest('.visual-card');
+      if (card) {
+        const btn = card.querySelector('.visual-delete-btn') as HTMLElement;
+        const overlay = card.querySelector('.visual-overlay') as HTMLElement;
+        if (btn) btn.style.opacity = '0';
+        if (overlay) overlay.style.opacity = '0';
+      }
+    };
+
+    // Handle delete click
+    const handleClick = (e: MouseEvent) => {
+      const btn = (e.target as HTMLElement).closest('.visual-delete-btn') as HTMLElement;
+      if (btn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const ts = btn.getAttribute('data-delete-ts');
+        if (ts && window.confirm('Remove this snapshot?')) {
+          onRemove(ts);
+        }
+      }
+    };
+
+    el.addEventListener('mouseover', handleMouseOver);
+    el.addEventListener('mouseout', handleMouseOut);
+    el.addEventListener('click', handleClick);
+
+    return () => {
+      el.removeEventListener('mouseover', handleMouseOver);
+      el.removeEventListener('mouseout', handleMouseOut);
+      el.removeEventListener('click', handleClick);
+    };
+  }, [processedHtml, onRemove]);
+
   return (
     <div
-      style={{ display: 'contents' }}
-      onClick={(e) => {
-        const btn = (e.target as HTMLElement).closest('.remove-visual-btn');
-        if (btn) {
-          e.stopPropagation();
-          const ts = btn.getAttribute('data-timestamp');
-          if (ts) onRemove?.(ts);
-        }
-      }}
-      dangerouslySetInnerHTML={{ __html: htmlContent }}
+      ref={containerRef}
+      className="ql-editor"
+      dangerouslySetInnerHTML={{ __html: processedHtml }}
     />
   );
 }
@@ -138,16 +211,26 @@ export default function NotesPage() {
   const searchParams = useSearchParams();
   const videoIdFromUrl = searchParams.get("v");
 
-  const [data, setData] = useState<any>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("noteflix_data");
-      if (saved) {
-        try { return JSON.parse(saved); } catch (e) { return null; }
-      }
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
+  const [stableVideoId, setStableVideoId] = useState<string>("");
+
+  // Load data from localStorage after hydration (avoids SSR mismatch)
+  useEffect(() => {
+    const saved = localStorage.getItem("noteflix_data");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setData(parsed);
+        setLoading(false);
+        if (parsed?.metadata?.video_id && !stableVideoId) {
+          setStableVideoId(parsed.metadata.video_id);
+        }
+      } catch (e) { /* ignore */ }
     }
-    return null;
-  });
-  const [loading, setLoading] = useState(!data);
+    setHydrated(true);
+  }, []);
   const [generating, setGenerating] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("transcript");
   const [outputTab, setOutputTab] = useState<OutputTabType>("notes");
@@ -170,6 +253,7 @@ export default function NotesPage() {
   const playerRef = useRef<any>(null);
   const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
   const quillRef = useRef<any>(null);
+
 
   // Bookmark state
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -238,6 +322,7 @@ export default function NotesPage() {
     async function loadInitialData() {
       // 1. Check URL param first
       if (videoIdFromUrl) {
+        setStableVideoId(videoIdFromUrl); // Set immediately for preview
         setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
@@ -251,6 +336,9 @@ export default function NotesPage() {
           if (lectureData) {
             setData(lectureData.notes_data);
             setLoading(false);
+            if (lectureData.notes_data?.metadata?.video_id) {
+              setStableVideoId(lectureData.notes_data.metadata.video_id);
+            }
             return;
           }
         }
@@ -263,6 +351,9 @@ export default function NotesPage() {
           const parsed = JSON.parse(saved);
           setData(parsed);
           setLoading(false);
+          if (parsed?.metadata?.video_id) {
+            setStableVideoId(parsed.metadata.video_id);
+          }
         } catch (e) {
           console.error("Failed to parse saved data", e);
         }
@@ -270,6 +361,22 @@ export default function NotesPage() {
     }
 
     loadInitialData();
+
+    // Listen for sections count to show placeholders
+    const handleSectionsReady = (e: CustomEvent) => {
+      const count = e.detail.count;
+      setData((prevData: any) => {
+        // Always read from localStorage to preserve metadata (video_id etc.)
+        const savedData = localStorage.getItem("noteflix_data");
+        const currentData = savedData ? JSON.parse(savedData) : (prevData ? { ...prevData } : {});
+        if (!currentData.notes || currentData.notes.length === 0) {
+          currentData.notes = new Array(count).fill(null);
+          localStorage.setItem("noteflix_data", JSON.stringify(currentData));
+        }
+        setLoading(false);
+        return currentData;
+      });
+    };
 
     // Listen for streaming note updates (individual notes as they're generated)
     const handleNoteStreamed = (e: CustomEvent) => {
@@ -335,6 +442,7 @@ export default function NotesPage() {
       setProcessingStatus(e.detail.message);
     };
 
+    window.addEventListener("sectionsReady", handleSectionsReady as unknown as EventListener);
     window.addEventListener("noteStreamed", handleNoteStreamed as unknown as EventListener);
     window.addEventListener("notesUpdated", handleNotesUpdate as unknown as EventListener);
     window.addEventListener("processingStatus", handleProcessingStatus as unknown as EventListener);
@@ -370,6 +478,7 @@ export default function NotesPage() {
     return () => {
       if (interval) clearInterval(interval);
       if (timeout) clearTimeout(timeout);
+      window.removeEventListener("sectionsReady", handleSectionsReady as unknown as EventListener);
       window.removeEventListener("noteStreamed", handleNoteStreamed as unknown as EventListener);
       window.removeEventListener("notesUpdated", handleNotesUpdate as unknown as EventListener);
       window.removeEventListener("processingStatus", handleProcessingStatus as unknown as EventListener);
@@ -430,39 +539,40 @@ export default function NotesPage() {
 
       if (!response.ok) throw new Error("Capture failed");
       const result = await response.json();
+      const imageUrl = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${Math.floor(timestamp)}.jpg`;
 
-      // If we are editing, we can auto-insert the actual preview image
+      // 1. Update State & LocalStorage
+      const visualTag = `\n[[VISUAL:${Math.floor(timestamp)}]]\n`;
+      let newEditedContent = editedNotes || convertNotesToHtml();
+
+      // If we are editing, auto-insert the image into the Quill editor
       if (isEditing && quillRef.current) {
         const editor = quillRef.current.getEditor();
         const selection = editor.getSelection();
         const insertIndex = selection ? selection.index : editor.getLength();
-
-        const imageUrl = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${Math.floor(timestamp)}.jpg`;
-
-        // Native Quill image insertion for drag-and-drop
         editor.insertEmbed(insertIndex, 'image', imageUrl);
-
-        // Find the image and add metadata
-        const [imgNode] = editor.getLeaf(insertIndex);
-        if (imgNode && imgNode.domNode) {
-          const img = imgNode.domNode;
-          img.classList.add('visual-snapshot');
-          img.setAttribute('data-timestamp', Math.floor(timestamp));
-          img.style.maxWidth = '100%';
-          img.style.borderRadius = '12px';
-          img.style.margin = '16px 0';
-        }
-
-        // Force update state from editor content
-        setEditedNotes(editor.root.innerHTML);
-      } else if (isEditing) {
-        // Fallback if ref is missed but editing is on
-        const visualTag = `\n[[VISUAL:${Math.floor(timestamp)}]]\n`;
-        setEditedNotes(prev => (prev || "") + visualTag);
+        editor.setSelection(insertIndex + 1);
+        newEditedContent = editor.root.innerHTML;
       } else {
-        alert("Snapshot captured! You can now use it in Edit Mode by adding [[VISUAL:" + Math.floor(timestamp) + "]]");
+        // Just append the tag if not in active editor
+        newEditedContent = (newEditedContent || "") + visualTag;
+      }
+
+      const savedHtml = transformImagesToTags(newEditedContent);
+      const updatedData = { ...data, editedNotes: savedHtml };
+
+      setEditedNotes(transformTagsToImages(newEditedContent));
+      setData(updatedData);
+      localStorage.setItem("noteflix_data", JSON.stringify(updatedData));
+
+      // 2. Persist to Database immediately
+      await updateDatabase(updatedData);
+
+      if (!isEditing) {
+        alert("Snapshot captured and saved!");
       }
     } catch (err) {
+      console.error("Capture error:", err);
       alert("Failed to capture snapshot");
     } finally {
       setIsSnapshotLoading(false);
@@ -474,8 +584,12 @@ export default function NotesPage() {
 
     // Remove from editedNotes if exists
     if (editedNotes) {
-      const regex = new RegExp(`\\[\\[VISUAL:${timestamp}\\]\\]`, 'g');
-      const updated = editedNotes.replace(regex, "");
+      // Remove [[VISUAL:timestamp]] tag format
+      const tagRegex = new RegExp(`\\[\\[VISUAL:${timestamp}\\]\\]`, 'g');
+      // Also remove <img> tags that match the visual URL pattern (from Quill editor)
+      const imgRegex = new RegExp(`<img[^>]*src="[^"]*\/static\/visuals\/[^"]*\/frame_${timestamp}\.jpg"[^>]*>`, 'g');
+      let updated = editedNotes.replace(tagRegex, "");
+      updated = updated.replace(imgRegex, "");
       setEditedNotes(updated);
 
       // Update data and storage to persist
@@ -808,27 +922,18 @@ export default function NotesPage() {
 
   const transformTagsToImages = (html: string) => {
     if (!html) return "";
-    // Transform specifically for the Editor: using plain <img> tags for native drag support
+    // Transform [[VISUAL:timestamp]] tags into <img> tags for the Quill editor
     return html.replace(/\[\[VISUAL:(\d+)\]\]/g, (match, timestamp) => {
       const url = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${timestamp}.jpg`;
-      return `<img src="${url}" class="visual-snapshot" data-timestamp="${timestamp}" style="max-width: 100%; border-radius: 12px; margin: 12px 0; cursor: move;" />`;
+      return `<img src="${url}" style="max-width: 100%; border-radius: 12px; margin: 12px 0; display: block; cursor: grab;" />`;
     });
   };
 
   const transformImagesToTags = (html: string) => {
     if (!html) return "";
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    const images = doc.querySelectorAll('img.visual-snapshot');
-
-    images.forEach(img => {
-      const timestamp = img.getAttribute('data-timestamp');
-      if (timestamp) {
-        img.replaceWith(`[[VISUAL:${timestamp}]]`);
-      }
-    });
-
-    return doc.body.innerHTML;
+    // Convert any <img> whose src matches our visual URL pattern back to [[VISUAL:timestamp]] tags
+    // This is URL-based matching — Quill strips custom classes/data-attributes, so we can't rely on those
+    return html.replace(/<img[^>]*src="[^"]*\/static\/visuals\/[^"]*\/frame_(\d+)\.jpg"[^>]*>/g, '[[VISUAL:$1]]');
   };
 
   const convertNotesToHtml = () => {
@@ -854,14 +959,35 @@ export default function NotesPage() {
     return html;
   };
 
+  // Sync editedNotes with data.editedNotes on load/update
+  useEffect(() => {
+    if (data?.editedNotes && !editedNotes) {
+      setEditedNotes(transformTagsToImages(data.editedNotes));
+    }
+  }, [data, hydrated, transformTagsToImages]);
+
+  const updateDatabase = async (updatedData: any) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session && updatedData.metadata?.video_id) {
+      const video_id = updatedData.metadata.video_id;
+
+      // Update lectures table
+      await supabase.from("lectures").update({
+        notes_data: updatedData
+      }).eq("user_id", session.user.id).eq("video_id", video_id);
+
+      // Update bookmarks table if exists
+      await supabase.from("bookmarks").update({
+        notes_data: updatedData
+      }).eq("user_id", session.user.id).eq("video_id", video_id);
+    }
+  };
+
   const handleEditToggle = () => {
     if (!isEditing) {
-      if (!editedNotes) {
-        const initialHtml = convertNotesToHtml();
-        setEditedNotes(transformTagsToImages(initialHtml));
-      } else {
-        setEditedNotes(transformTagsToImages(editedNotes));
-      }
+      // Prioritize existing editedNotes or saved data
+      let contentToLoad = editedNotes || data?.editedNotes || convertNotesToHtml();
+      setEditedNotes(transformTagsToImages(contentToLoad));
     }
     setIsEditing(!isEditing);
   };
@@ -871,22 +997,14 @@ export default function NotesPage() {
 
     const savedHtml = transformImagesToTags(editedNotes || "");
     const updatedData = { ...data, editedNotes: savedHtml };
+
     setData(updatedData);
     localStorage.setItem("noteflix_data", JSON.stringify(updatedData));
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session && data.metadata?.video_id) {
-      await supabase.from("lectures").update({
-        notes_data: updatedData
-      }).eq("user_id", session.user.id).eq("video_id", data.metadata.video_id);
-
-      await supabase.from("bookmarks").update({
-        notes_data: updatedData
-      }).eq("user_id", session.user.id).eq("video_id", data.metadata.video_id);
-    }
+    await updateDatabase(updatedData);
   };
 
-  const videoId = data?.metadata?.video_id || "";
+  const videoId = stableVideoId || data?.metadata?.video_id || "";
 
   return (
     <div className="min-h-screen bg-background text-foreground flex overflow-hidden">
@@ -1149,21 +1267,65 @@ export default function NotesPage() {
                         <div className="space-y-8">
                           {editedNotes ? (
                             <div className="ql-snow">
-                              <div className="bg-card/50 backdrop-blur-xl rounded-2xl p-8 border border-border shadow-lg ql-editor">
-                                <NoteContent text={editedNotes} videoId={videoId} onRemove={handleRemoveVisual} />
+                              <div className="bg-card/50 backdrop-blur-xl rounded-2xl p-8 border border-border shadow-lg">
+                                <SavedNotesRenderer html={editedNotes} videoId={videoId} onRemove={handleRemoveVisual} />
                               </div>
                             </div>
                           ) : (
                             <>
+                              {/* Overall generating indicator when no notes exist yet */}
+                              {(!data.notes || data.notes.length === 0) && (
+                                <div className="flex flex-col items-center justify-center py-16 px-8">
+                                  <div className="relative mb-8">
+                                    <div className="w-20 h-20 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center shadow-xl shadow-purple-500/20">
+                                      <Loader2 className="animate-spin text-white" size={36} />
+                                    </div>
+                                    <div className="absolute -inset-2 rounded-full bg-gradient-to-r from-purple-400/20 to-blue-400/20 animate-pulse" />
+                                  </div>
+                                  <h3 className="text-2xl font-bold text-foreground mb-3">Generating Your Notes</h3>
+                                  <p className="text-foreground-muted text-center text-lg mb-4 max-w-md">
+                                    {processingStatus || "AI is analyzing the lecture and creating structured notes for you..."}
+                                  </p>
+                                  <div className="flex items-center gap-2 text-sm text-purple-600 font-medium">
+                                    <Sparkles size={16} className="animate-pulse" />
+                                    <span>Please wait, this may take a moment</span>
+                                    <span className="inline-flex">
+                                      <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
+                                      <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
+                                      <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
                               {data.notes?.map((section: any, idx: number) => {
-                                if (!section) return null;
+                                if (!section) {
+                                  return (
+                                    <div key={idx} className="bg-card/50 backdrop-blur-xl rounded-2xl p-8 border border-border shadow-lg animate-pulse">
+                                      <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600/30 to-blue-600/30 flex items-center justify-center">
+                                          <Loader2 className="animate-spin text-purple-500" size={16} />
+                                        </div>
+                                        <div className="text-lg font-semibold text-foreground/60">Chapter {idx + 1}</div>
+                                      </div>
+                                      <div className="space-y-3">
+                                        <div className="h-4 bg-gradient-to-r from-purple-200/20 to-blue-200/20 rounded-full w-3/4" />
+                                        <div className="h-4 bg-gradient-to-r from-purple-200/20 to-blue-200/20 rounded-full w-1/2" />
+                                        <div className="h-4 bg-gradient-to-r from-purple-200/20 to-blue-200/20 rounded-full w-5/6" />
+                                      </div>
+                                      <p className="text-sm text-purple-500/80 mt-4 font-medium flex items-center gap-2">
+                                        <Sparkles size={14} className="animate-pulse" />
+                                        Generating notes...
+                                      </p>
+                                    </div>
+                                  );
+                                }
                                 return (
                                   <div key={idx}>
                                     <h2 className="text-3xl font-bold text-foreground mb-4 pb-2 border-b-2 border-purple-200/30">
                                       {section.title}
                                     </h2>
                                     <div className="text-foreground/80 mb-6 leading-relaxed text-lg">
-                                      <NoteContent text={String(section.notes.explanation)} videoId={videoId} onRemove={handleRemoveVisual} />
+                                      <NoteContent text={String(section.notes.explanation)} videoId={videoId} />
                                     </div>
                                     {section.notes?.bullet_notes?.length > 0 && (
                                       <ul className="space-y-4 mb-8">
@@ -1172,7 +1334,7 @@ export default function NotesPage() {
                                             <div className="flex gap-3 text-foreground/80 text-lg">
                                               <span className="text-purple-600 mt-1 font-bold text-xl inline-block shrink-0">•</span>
                                               <div className="flex-1">
-                                                <NoteContent text={String(point)} videoId={videoId} onRemove={handleRemoveVisual} />
+                                                <NoteContent text={String(point)} videoId={videoId} />
                                               </div>
                                             </div>
                                           </li>

@@ -146,6 +146,18 @@ export default function ProcessPage() {
               }));
             }
 
+            // Forward sections count so notes page can show placeholders
+            if (event.status === "sections_done" && event.sections_count) {
+              const currentData = JSON.parse(localStorage.getItem("noteflix_data") || "{}");
+              if (!currentData.notes || currentData.notes.length === 0) {
+                currentData.notes = new Array(event.sections_count).fill(null);
+                localStorage.setItem("noteflix_data", JSON.stringify(currentData));
+              }
+              window.dispatchEvent(new CustomEvent("sectionsReady", {
+                detail: { count: event.sections_count }
+              }));
+            }
+
             // Stream metadata/transcript immediately
             if (event.status === "metadata_ready") {
               const currentData = JSON.parse(localStorage.getItem("noteflix_data") || "{}");

@@ -27,8 +27,8 @@ MODEL = "llama-3.1-8b-instant"
 # ---------------------------------------------------
 
 # Global Semaphore to limit concurrent Groq calls
-# Increased for faster parallel processing
-GROQ_SEMAPHORE = asyncio.Semaphore(10)
+# Reduced to prevent rate limiting when processing many sections
+GROQ_SEMAPHORE = asyncio.Semaphore(4)
 
 async def groq_with_retry(func, *args, **kwargs):
     """
