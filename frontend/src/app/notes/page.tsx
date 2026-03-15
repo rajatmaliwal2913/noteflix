@@ -18,6 +18,8 @@ import YouTube from "react-youtube";
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
 import "react-quill-new/dist/quill.snow.css";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 const filterGenericText = (text: any): string => {
   if (typeof text !== 'string') {
     if (text === null || text === undefined) return '';
@@ -55,7 +57,7 @@ function NoteContent({ text, videoId }: { text: string; videoId: string }) {
         const visualMatch = part.match(/\[\[VISUAL:(\d+)\]\]/);
         if (visualMatch) {
           const timestamp = visualMatch[1];
-          const imageUrl = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${timestamp}.jpg`;
+          const imageUrl = `${API_URL}/static/visuals/${videoId}/frame_${timestamp}.jpg`;
           return (
             <div key={i} className="my-6 rounded-2xl overflow-hidden border border-border shadow-md bg-muted/10" style={{ width: '100%' }}>
               <img
@@ -80,7 +82,7 @@ function SavedNotesRenderer({ html, videoId, onRemove }: { html: string; videoId
   const containerRef = useRef<HTMLDivElement>(null);
 
   const processedHtml = String(html).replace(/\[\[VISUAL:(\d+)\]\]/g, (match, timestamp) => {
-    const url = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${timestamp}.jpg`;
+    const url = `${API_URL}/static/visuals/${videoId}/frame_${timestamp}.jpg`;
     return `
       <div class="visual-card" data-visual-ts="${timestamp}" style="position:relative; width:100%; margin:24px 0; border-radius:16px; overflow:hidden; border:1px solid var(--border, #e5e7eb); box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);">
         <img src="${url}" alt="Snapshot at ${timestamp}s" style="width:100%; height:auto; max-height:500px; object-fit:cover; display:block;" />
@@ -165,7 +167,7 @@ function Flashcard({ data, index, total }: any) {
         className="w-full h-full relative preserve-3d"
         style={{ transformStyle: "preserve-3d" }}
       >
-        {}
+        { }
         <div className="absolute inset-0 backface-hidden bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-xl text-white">
           <div className="absolute top-4 right-4 bg-white/20 px-3 py-1 rounded-full text-sm font-medium backdrop-blur-sm">
             {index + 1} / {total}
@@ -179,7 +181,7 @@ function Flashcard({ data, index, total }: any) {
           </p>
         </div>
 
-        {}
+        { }
         <div
           className="absolute inset-0 backface-hidden bg-card rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-xl border-2 border-purple-100/20"
           style={{ transform: "rotateY(180deg)" }}
@@ -219,7 +221,7 @@ export default function NotesPage() {
         if (parsed?.metadata?.video_id && !stableVideoId) {
           setStableVideoId(parsed.metadata.video_id);
         }
-      } catch (e) {  }
+      } catch (e) { }
     }
     setHydrated(true);
   }, []);
@@ -308,9 +310,9 @@ export default function NotesPage() {
 
   useEffect(() => {
     async function loadInitialData() {
-      
+
       if (videoIdFromUrl) {
-        setStableVideoId(videoIdFromUrl); 
+        setStableVideoId(videoIdFromUrl);
         setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
@@ -352,7 +354,7 @@ export default function NotesPage() {
     const handleSectionsReady = (e: CustomEvent) => {
       const count = e.detail.count;
       setData((prevData: any) => {
-        
+
         const savedData = localStorage.getItem("noteflix_data");
         const currentData = savedData ? JSON.parse(savedData) : (prevData ? { ...prevData } : {});
         if (!currentData.notes || currentData.notes.length === 0) {
@@ -478,7 +480,7 @@ export default function NotesPage() {
     setChatLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/chat", {
+      const response = await fetch(`${API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -506,7 +508,7 @@ export default function NotesPage() {
     const timestamp = await player.getCurrentTime();
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/capture-frame", {
+      const response = await fetch(`${API_URL}/capture-frame`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -518,7 +520,7 @@ export default function NotesPage() {
 
       if (!response.ok) throw new Error("Capture failed");
       const result = await response.json();
-      const imageUrl = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${Math.floor(timestamp)}.jpg`;
+      const imageUrl = `${API_URL}/static/visuals/${videoId}/frame_${Math.floor(timestamp)}.jpg`;
 
       const visualTag = `\n[[VISUAL:${Math.floor(timestamp)}]]\n`;
       let newEditedContent = editedNotes || convertNotesToHtml();
@@ -531,7 +533,7 @@ export default function NotesPage() {
         editor.setSelection(insertIndex + 1);
         newEditedContent = editor.root.innerHTML;
       } else {
-        
+
         newEditedContent = (newEditedContent || "") + visualTag;
       }
 
@@ -598,7 +600,7 @@ export default function NotesPage() {
   };
 
   const generateExtra = async (type: "tldr" | "quiz" | "flashcards" | "interview", force: boolean = false) => {
-    
+
     if (["quiz", "flashcards", "interview"].indexOf(type) === -1) {
       console.log("Feature disabled");
       return;
@@ -608,14 +610,14 @@ export default function NotesPage() {
 
     setGenerating(type);
     try {
-      
+
       if (!data.notes || data.notes.length === 0) {
         alert("Please wait for notes to finish generating before creating a quiz.");
         return;
       }
 
       const notesText = data.notes
-        .filter((n: any) => n) 
+        .filter((n: any) => n)
         .map((n: any) =>
           `${n.title}\n${n.notes.explanation}\n${n.notes.bullet_notes.join("\n")}`
         ).join("\n\n");
@@ -634,10 +636,10 @@ export default function NotesPage() {
       }
 
       const seed = force ? Math.floor(Math.random() * 1000) : 0;
-      
+
       const count = type === "flashcards" && data.sections ? data.sections.length : 5;
 
-      const response = await fetch(`http://127.0.0.1:8000/generate-${type}`, {
+      const response = await fetch(`${API_URL}/generate-${type}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -709,12 +711,12 @@ export default function NotesPage() {
           const visualMatch = segment.match(/\[\[VISUAL:(\d+)\]\]/);
           if (visualMatch) {
             const timestamp = visualMatch[1];
-            const imageUrl = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${timestamp}.jpg`;
+            const imageUrl = `${API_URL}/static/visuals/${videoId}/frame_${timestamp}.jpg`;
             const base64 = await fetchImageAsBase64(imageUrl);
 
             if (base64) {
-              const imgWidth = 120; 
-              const imgHeight = 67; 
+              const imgWidth = 120;
+              const imgHeight = 67;
 
               if (yPos + imgHeight > pageHeight - margin) {
                 doc.addPage();
@@ -891,9 +893,9 @@ export default function NotesPage() {
 
   const transformTagsToImages = (html: string) => {
     if (!html) return "";
-    
+
     return html.replace(/\[\[VISUAL:(\d+)\]\]/g, (match, timestamp) => {
-      const url = `http://127.0.0.1:8000/static/visuals/${videoId}/frame_${timestamp}.jpg`;
+      const url = `${API_URL}/static/visuals/${videoId}/frame_${timestamp}.jpg`;
       return `<img src="${url}" style="max-width: 100%; border-radius: 12px; margin: 12px 0; display: block; cursor: grab;" />`;
     });
   };
@@ -950,7 +952,7 @@ export default function NotesPage() {
 
   const handleEditToggle = () => {
     if (!isEditing) {
-      
+
       let contentToLoad = editedNotes || data?.editedNotes || convertNotesToHtml();
       setEditedNotes(transformTagsToImages(contentToLoad));
     }
@@ -973,10 +975,10 @@ export default function NotesPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex overflow-hidden">
-      {}
+      { }
       <Sidebar />
 
-      {}
+      { }
       <div className="flex-1 relative z-10 transition-all duration-300 overflow-y-auto">
         {loading && !data ? (
           <div className="h-full flex items-center justify-center p-20">
@@ -1250,7 +1252,7 @@ export default function NotesPage() {
                                 return uniqueSnapshots.map(ts => (
                                   <div key={ts} className="group relative aspect-video rounded-xl border border-border overflow-hidden bg-muted">
                                     <img
-                                      src={`http://127.0.0.1:8000/static/visuals/${videoId}/frame_${ts}.jpg`}
+                                      src={`${API_URL}/static/visuals/${videoId}/frame_${ts}.jpg`}
                                       alt="Snapshot"
                                       className="w-full h-full object-cover"
                                     />

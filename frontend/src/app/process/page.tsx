@@ -40,8 +40,9 @@ export default function ProcessPage() {
     setLoadingPreview(true);
 
     try {
-      
-      const res = await fetch("http://127.0.0.1:8000/preview-video", {
+
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+      const res = await fetch(`${API_URL}/preview-video`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
@@ -66,7 +67,7 @@ export default function ProcessPage() {
   }
 
   async function generateNotes() {
-    
+
     let selectedChaptersPayload = null;
     if (preview?.chapters && preview.chapters.length > 0) {
       const selectedList = preview.chapters.filter((_: any, i: number) => selectedIndices.has(i));
@@ -95,7 +96,8 @@ export default function ProcessPage() {
     router.push(`/notes`);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/process-video", {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+      const response = await fetch(`${API_URL}/process-video`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -119,7 +121,7 @@ export default function ProcessPage() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; 
+        buffer = lines.pop() || "";
 
         for (const line of lines) {
           if (!line.trim()) continue;
@@ -210,7 +212,7 @@ export default function ProcessPage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-10 relative overflow-hidden">
 
-      {}
+      { }
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute w-[700px] h-[700px] bg-purple-400/20 blur-[160px] rounded-full -top-60 -left-40" />
         <div className="absolute w-[600px] h-[600px] bg-blue-400/20 blur-[160px] rounded-full bottom-0 right-0" />
@@ -218,7 +220,7 @@ export default function ProcessPage() {
 
       <AnimatePresence mode="wait">
 
-        {}
+        { }
         {step === "input" && (
           <motion.div
             key="input"
@@ -260,7 +262,7 @@ export default function ProcessPage() {
           </motion.div>
         )}
 
-        {}
+        { }
         {step === "preview" && (
           <motion.div
             key="preview"
@@ -272,13 +274,13 @@ export default function ProcessPage() {
 
             <div className="flex gap-10 h-full overflow-hidden">
 
-              {}
+              { }
               <div className="w-1/2 flex flex-col h-full overflow-y-auto pr-2">
                 <h2 className="text-2xl font-bold mb-4 text-foreground flex gap-2 items-center">
                   <Film /> Setup Notes
                 </h2>
 
-                {}
+                { }
                 <div className="aspect-video rounded-2xl overflow-hidden shadow-lg mb-6 shrink-0">
                   <iframe
                     className="w-full h-full"
@@ -297,7 +299,7 @@ export default function ProcessPage() {
 
               </div >
 
-              {}
+              { }
               < div className="w-1/2 flex flex-col h-full border-l pl-8 border-gray-100" >
                 <div className="flex justify-between items-center mb-4">
                   <SectionTitle icon={<CheckSquare />} title="Select Chapters" />
