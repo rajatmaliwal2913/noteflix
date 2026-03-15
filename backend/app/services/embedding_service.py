@@ -6,7 +6,6 @@ model = SentenceTransformer("all-MiniLM-L6-v2")
 chroma_client = chromadb.Client()
 collection = chroma_client.get_or_create_collection("lecture_notes")
 
-
 def create_embeddings_for_sections(sections):
     """
     Store section text embeddings in Chroma.
@@ -22,7 +21,6 @@ def create_embeddings_for_sections(sections):
         embeddings=embeddings,
         ids=ids
     )
-
 
 def search_sections(query, k=3):
     """

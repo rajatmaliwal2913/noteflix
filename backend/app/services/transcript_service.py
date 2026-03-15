@@ -15,27 +15,20 @@ import glob
 import yt_dlp
 import whisper
 
-# Lazy-loaded Whisper model
 WHISPER_MODEL = None
-
-
-# ---------------------------------------------------
-# VIDEO METADATA (SAFE + FAULT TOLERANT)
-# ---------------------------------------------------
 
 def get_video_metadata(url: str):
     ydl_opts = {
         "quiet": True,
         "skip_download": True,
         "nocheckcertificate": True,
-        "noplaylist": True,       # Extract single video, not playlist
-        "extract_flat": False,    # Get full video info
+        "noplaylist": True,       
+        "extract_flat": False,    
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
-    # Extract chapters safely
     chapters = []
     if info.get("chapters"):
         for ch in info["chapters"]:
@@ -45,7 +38,6 @@ def get_video_metadata(url: str):
                 "end": ch.get("end_time", 0)
             })
 
-    # ⭐ SAFE metadata (no KeyError ever again)
     return {
         "video_id": info.get("id"),
         "title": info.get("title", "Untitled Video"),
@@ -54,11 +46,6 @@ def get_video_metadata(url: str):
         "thumbnail": info.get("thumbnail", ""),
         "chapters": chapters
     }
-
-
-# ---------------------------------------------------
-# SUBTITLES USING yt-dlp (PRIMARY METHOD)
-# ---------------------------------------------------
 
 def get_captions_with_ytdlp(url: str):
     """
@@ -122,18 +109,12 @@ def get_captions_with_ytdlp(url: str):
         print("⚠️ yt-dlp subtitle fetch failed:", e)
         return None
 
-
-# ---------------------------------------------------
-# WHISPER FALLBACK
-# ---------------------------------------------------
-
 def load_whisper_model():
     global WHISPER_MODEL
     if WHISPER_MODEL is None:
         print("🔊 Loading Whisper model (first time only)...")
         WHISPER_MODEL = whisper.load_model("base")
     return WHISPER_MODEL
-
 
 def download_youtube_audio(url: str):
     """
@@ -159,7 +140,6 @@ def download_youtube_audio(url: str):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
 
-    # Cleanup non-mp3 leftovers
     for file in glob.glob(f"{file_id}.*"):
         if not file.endswith(".mp3"):
             try:
@@ -169,12 +149,10 @@ def download_youtube_audio(url: str):
 
     return f"{file_id}.mp3"
 
-
 def whisper_transcribe(audio_path: str):
     model = load_whisper_model()
     result = model.transcribe(audio_path)
     return result["segments"]
-
 
 def normalize_whisper(segments):
     return [
@@ -186,11 +164,6 @@ def normalize_whisper(segments):
         for seg in segments
     ]
 
-
-# ---------------------------------------------------
-# MAIN ORCHESTRATOR ⭐
-# ---------------------------------------------------
-
 def generate_transcript(url: str):
     """
     yt-dlp subtitles → Whisper fallback
@@ -199,7 +172,6 @@ def generate_transcript(url: str):
     metadata = get_video_metadata(url)
     print("📺 Processing video:", metadata["title"])
 
-    # 1️⃣ Try subtitles (FAST PATH)
     captions = get_captions_with_ytdlp(url)
 
     if captions:

@@ -7,27 +7,16 @@ from pathlib import Path
 from dotenv import load_dotenv
 from groq import AsyncGroq, RateLimitError
 
-# ---------------------------------------------------
-# ENV + CLIENT
-# ---------------------------------------------------
-
-# Load .env from backend root
 env_path = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(env_path)
 
 client = AsyncGroq(
     api_key=os.getenv("GROQ_API_KEY"),
-    timeout=15,  # Reduced timeout for faster failures
+    timeout=15,  
 )
 
 MODEL = "llama-3.1-8b-instant"
 
-# ---------------------------------------------------
-# RETRY + SAFE JSON HELPERS
-# ---------------------------------------------------
-
-# Global Semaphore to limit concurrent Groq calls
-# Reduced to prevent rate limiting when processing many sections
 GROQ_SEMAPHORE = asyncio.Semaphore(4)
 
 async def groq_with_retry(func, *args, **kwargs):
@@ -37,20 +26,19 @@ async def groq_with_retry(func, *args, **kwargs):
     Optimized for speed - fewer retries, shorter waits.
     """
     async with GROQ_SEMAPHORE:
-        for attempt in range(2):  # Reduced retries for speed
+        for attempt in range(2):  
             try:
                 return await func(*args, **kwargs)
             except RateLimitError:
-                wait_time = 3 + attempt * 2  # Shorter waits
+                wait_time = 3 + attempt * 2  
                 print(f"⏳ Groq rate limited. Waiting {wait_time}s...")
                 await asyncio.sleep(wait_time)
             except Exception as e:
                 if attempt == 1: raise e
                 print(f"⚠️ Groq error: {e}. Retrying...")
-                await asyncio.sleep(1)  # Shorter wait
+                await asyncio.sleep(1)  
 
     raise Exception("Groq failed after retries")
-
 
 def safe_json_loads(text: str):
     """
@@ -59,17 +47,13 @@ def safe_json_loads(text: str):
     if not text:
         raise Exception("Empty LLM response")
 
-    # Remove markdown code fences
     text = text.replace("```json", "").replace("```", "").strip()
 
-    # Try to parse directly first
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    # Find first JSON object in text (more robust pattern)
-    # Look for { ... } with balanced braces
     brace_count = 0
     start_idx = -1
     for i, char in enumerate(text):
@@ -84,12 +68,11 @@ def safe_json_loads(text: str):
                     json_str = text[start_idx:i+1]
                     return json.loads(json_str)
                 except json.JSONDecodeError:
-                    # Try again with next occurrence
+                    
                     start_idx = -1
                     brace_count = 0
                     continue
 
-    # Fallback: try regex match
     match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text, re.DOTALL)
     if match:
         try:
@@ -97,10 +80,8 @@ def safe_json_loads(text: str):
         except json.JSONDecodeError:
             pass
 
-    # Last resort: print the response for debugging
     print(f"⚠️ Failed to parse JSON. Response preview: {text[:500]}")
     raise Exception(f"No valid JSON found in LLM response. Response: {text[:200]}...")
-
 
 async def call_llm(prompt: str, temperature: float = 0.2):
     response = await groq_with_retry(
@@ -111,9 +92,8 @@ async def call_llm(prompt: str, temperature: float = 0.2):
     )
 
     text = response.choices[0].message.content.strip()
-    # Remove ```json if model wraps output
+    
     return text.replace("```json", "").replace("```", "")
-
 
 async def generate_section_metadata(section_text: str):
     """
@@ -138,7 +118,6 @@ async def generate_section_metadata(section_text: str):
     )
     return safe_json_loads(response.choices[0].message.content)
 
-
 async def generate_section_notes_with_title(
     section_text: str,
     chapter_title: str,
@@ -154,8 +133,7 @@ async def generate_section_notes_with_title(
     Generate title, summary, and notes in ONE call for speed.
     Uses chapter title as hint but can improve it.
     """
-    
-    # Visuals Context
+
     visual_hint = ""
     if (include_visuals or include_code) and visual_resources:
         available_ts = [v["timestamp"] for v in visual_resources]
@@ -164,8 +142,7 @@ async def generate_section_notes_with_title(
             "- CRITICAL: If a visual is relevant to a specific concept, embed it on its OWN line using: [[VISUAL:timestamp]].\n"
             "- Only use timestamps from the list provided above."
         )
-    
-    # Map format to instruction
+
     format_rules = ""
     if "Bullet" in format_type or "bullet" in format_type.lower():
         format_instruction = "Bullet Points"
@@ -188,8 +165,7 @@ async def generate_section_notes_with_title(
             '- Use "bullet_notes" for specific facts, data points, or steps.\n'
             '- CRITICAL: ZERO REPETITION. If a fact is in bullet_notes, do NOT mention it in explanation. If a concept is in explanation, do NOT repeat it in bullet_notes.'
         )
-    
-    # Map depth to instruction and length constraints
+
     depth_instruction = ""
     length_constraint = ""
     if "Concise" in depth or "concise" in depth.lower():
@@ -201,8 +177,7 @@ async def generate_section_notes_with_title(
     else:
         depth_instruction = "Standard"
         length_constraint = "Aim for a balanced explanation with key details (approx 200-250 words)."
-    
-    # Build context instructions based on user preferences
+
     context_instructions = []
     if include_visuals:
         context_instructions.append("Include descriptions of visual elements, diagrams, or UI components when mentioned")
@@ -260,7 +235,6 @@ Text:
     text = response.choices[0].message.content.strip()
     return safe_json_loads(text)
 
-# Keep old function for backwards compatibility if needed
 async def generate_section_notes(
     section_text: str,
     depth: str,
@@ -281,9 +255,6 @@ async def generate_section_notes(
         "key_concepts": result.get("key_concepts", []),
         "difficulty": result.get("difficulty", "Intermediate")
     }
-
-
-
 
 async def generate_tldr(notes_text: str, language: str = "English"):
     prompt = f"""
@@ -406,8 +377,6 @@ async def generate_interview_questions(notes_text: str, language: str = "English
 
     return safe_json_loads(response.choices[0].message.content)
 
-
-
 async def generate_tldr(notes_text: str, language: str = "English"):
     prompt = f"""
     Create a "Too Long; Didn't Read" (TLDR) summary of these notes.
@@ -432,7 +401,6 @@ async def generate_tldr(notes_text: str, language: str = "English"):
     )
 
     return safe_json_loads(response.choices[0].message.content)
-
 
 async def chat_with_context(question: str, context_docs: list[str]):
     """

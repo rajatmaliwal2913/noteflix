@@ -32,7 +32,7 @@ export default function AIChatPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     question: userMsg,
-                    transcript: null // Force embedding search across all lectures
+                    transcript: null 
                 }),
             });
 
@@ -54,7 +54,7 @@ export default function AIChatPage() {
             <div className="flex-1 flex flex-col relative z-10 px-6 py-8 h-screen">
                 <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col bg-card/80 backdrop-blur-xl rounded-3xl border border-border shadow-xl overflow-hidden">
 
-                    {/* Header */}
+                    {}
                     <div className="px-8 py-6 border-b border-border flex items-center justify-between bg-gradient-to-r from-purple-500/5 to-blue-500/5">
 
                         <div className="flex items-center gap-4">
@@ -70,7 +70,7 @@ export default function AIChatPage() {
                         <Sparkles className="text-purple-400" size={24} />
                     </div>
 
-                    {/* Messages */}
+                    {}
                     <div className="flex-1 overflow-y-auto p-8 space-y-6">
                         {messages.map((msg, idx) => (
                             <motion.div
@@ -101,7 +101,7 @@ export default function AIChatPage() {
                         <div ref={scrollRef} />
                     </div>
 
-                    {/* Input */}
+                    {}
                     <form onSubmit={handleSubmit} className="p-6 bg-card border-t border-border">
                         <div className="flex gap-4">
                             <input

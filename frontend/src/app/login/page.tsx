@@ -40,12 +40,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen w-full flex bg-background text-foreground overflow-hidden relative">
 
-
-
-      {/* Background animation */}
+      {}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-background/80" />
-
 
         {floatingShapes.map((shape, i) => (
           <motion.div
@@ -63,7 +60,7 @@ export default function LoginPage() {
       <div className="w-full max-w-7xl mx-auto flex items-center justify-center p-6 relative z-10">
         <div className="w-full grid lg:grid-cols-2 gap-16 items-center">
 
-          {/* LEFT HERO */}
+          {}
           <motion.div
             initial={{ opacity: 0, x: -40 }}
             animate={{ opacity: 1, x: 0 }}
@@ -89,7 +86,6 @@ export default function LoginPage() {
               Turn YouTube lectures into structured knowledge using AI.
             </p>
 
-
             <div className="flex gap-4">
               {["AI Notes", "Smart Quizzes", "Chat with Lectures"].map((f) => (
                 <div key={f} className="bg-card px-5 py-3 rounded-full shadow border border-border text-sm font-semibold flex gap-2">
@@ -99,12 +95,11 @@ export default function LoginPage() {
             </div>
           </motion.div>
 
-          {/* LOGIN CARD */}
+          {}
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md mx-auto">
             <div className="bg-card/80 backdrop-blur-xl rounded-3xl shadow-xl p-10 border border-border">
 
               <h2 className="text-3xl font-bold mb-6 text-foreground">Welcome Back</h2>
-
 
               <form onSubmit={handleLogin} className="space-y-6">
 
@@ -146,7 +141,6 @@ export default function LoginPage() {
               <p className="mt-6 text-center text-foreground-muted">
                 New here? <a href="/signup" className="text-purple-600 font-semibold">Create account</a>
               </p>
-
 
             </div>
           </motion.div>

@@ -8,8 +8,8 @@ class Chapter(BaseModel):
 
 class VideoRequest(BaseModel):
     url: str
-    depth: str = "concise"     # concise | detailed
-    format: str = "bullets"    # bullets | paragraphs
+    depth: str = "concise"     
+    format: str = "bullets"    
 
 class VideoProcessRequest(BaseModel):
     url: str

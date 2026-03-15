@@ -38,7 +38,6 @@ export default function DashboardPage() {
 
       setName(profile.name);
 
-      // 📚 FETCH LIBRARY
       const { data: lecturesData } = await supabase
         .from("lectures")
         .select("*")
@@ -66,7 +65,6 @@ export default function DashboardPage() {
     } = await supabase.auth.getSession();
     if (!session) return;
 
-    // 1. Delete from lectures
     const { error: lectureError } = await supabase
       .from("lectures")
       .delete()
@@ -79,35 +77,32 @@ export default function DashboardPage() {
       return;
     }
 
-    // 2. Delete associated bookmarks
     await supabase
       .from("bookmarks")
       .delete()
       .eq("video_id", video_id)
       .eq("user_id", session.user.id);
 
-    // 3. Update local state
     setLectures((prev) => prev.filter((l) => l.id !== id));
   };
 
   return (
     <div className="min-h-screen bg-background text-foreground flex overflow-hidden">
 
-
-      {/* 🌈 BACKGROUND */}
+      {}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-30" />
         <div className="absolute w-[700px] h-[700px] bg-purple-400/30 blur-[160px] rounded-full -top-60 -left-40" />
         <div className="absolute w-[600px] h-[600px] bg-blue-400/30 blur-[160px] rounded-full bottom-0 right-0" />
       </div>
 
-      {/* 🧭 SIDEBAR */}
+      {}
       <Sidebar />
 
-      {/* 🧠 MAIN */}
+      {}
       <div className="flex-1 px-14 py-12 relative z-10 transition-all duration-300 overflow-y-auto">
 
-        {/* Greeting */}
+        {}
         <div className="mb-10">
           <h1 className="text-5xl font-bold text-foreground">
             Welcome back{name ? `, ${name} ` : " "}✨
@@ -116,13 +111,13 @@ export default function DashboardPage() {
 
         </div>
 
-        {/* STATS */}
+        {}
         <div className="grid grid-cols-2 gap-6 mb-14">
           <StatCard icon={<VideoIcon />} title="Videos processed" value={lectures.length.toString()} />
           <StatCard icon={<ClockIcon />} title="Time Saved" value={formatTimeSaved(lectures)} />
         </div>
 
-        {/* 🚀 HERO CTA */}
+        {}
         <motion.div
           whileHover={{ scale: 1.02 }}
           className="relative overflow-hidden bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-600 rounded-[40px] p-12 shadow-2xl max-w-4xl text-white mb-16"
@@ -156,7 +151,7 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* 📚 LIBRARY */}
+        {}
         <div>
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold text-foreground">Your Library</h2>
@@ -230,7 +225,7 @@ export default function DashboardPage() {
 
 function formatTimeSaved(lectures: any[]) {
   const totalSeconds = lectures.reduce((acc, lecture) => {
-    // Check multiple paths for duration
+    
     const duration =
       lecture.metadata?.duration ||
       lecture.notes_data?.metadata?.duration ||
@@ -243,8 +238,6 @@ function formatTimeSaved(lectures: any[]) {
   const mins = totalMinutes % 60;
   return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
 }
-
-/* COMPONENTS */
 
 function StatCard({ icon, title, value }: any) {
   return (

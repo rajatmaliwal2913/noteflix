@@ -14,11 +14,9 @@ export default function ProcessPage() {
   const [videoId, setVideoId] = useState("");
   const [step, setStep] = useState<"input" | "preview">("input");
 
-  // Preview Data
   const [preview, setPreview] = useState<any>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
 
-  // 🎛️ Options
   const [depth, setDepth] = useState("Standard");
   const [format, setFormat] = useState("Bullet Points");
   const [tone, setTone] = useState("Student");
@@ -26,17 +24,14 @@ export default function ProcessPage() {
   const [includeVisuals, setIncludeVisuals] = useState(true);
   const [includeCode, setIncludeCode] = useState(true);
 
-  // 📚 Chapter Selection
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
 
-  /* Extract YouTube ID */
   function getVideoId(link: string) {
     const reg = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/;
     const match = link.match(reg);
     return match ? match[1] : "";
   }
 
-  /* STEP 1 → Preview with Backend Call */
   async function handlePreview() {
     const id = getVideoId(url);
     if (!id) return alert("Please paste a valid YouTube URL");
@@ -45,7 +40,7 @@ export default function ProcessPage() {
     setLoadingPreview(true);
 
     try {
-      // Restore backend call for chapters
+      
       const res = await fetch("http://127.0.0.1:8000/preview-video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -56,7 +51,6 @@ export default function ProcessPage() {
       const data = await res.json();
       setPreview(data);
 
-      // Initialize all chapters selected
       if (data.chapters && data.chapters.length > 0) {
         setSelectedIndices(new Set(data.chapters.map((_: any, i: number) => i)));
       } else {
@@ -71,9 +65,8 @@ export default function ProcessPage() {
     }
   }
 
-  /* STEP 2 → Navigate immediately and stream in background */
   async function generateNotes() {
-    // Construct selected_chapters payload
+    
     let selectedChaptersPayload = null;
     if (preview?.chapters && preview.chapters.length > 0) {
       const selectedList = preview.chapters.filter((_: any, i: number) => selectedIndices.has(i));
@@ -84,7 +77,6 @@ export default function ProcessPage() {
       }));
     }
 
-    // Store initial data for immediate display
     const initialData = {
       metadata: {
         ...preview,
@@ -100,10 +92,8 @@ export default function ProcessPage() {
     };
     localStorage.setItem("noteflix_data", JSON.stringify(initialData));
 
-    // Navigate immediately to notes page (no processing screen)
     router.push(`/notes`);
 
-    // Start processing in background
     try {
       const response = await fetch("http://127.0.0.1:8000/process-video", {
         method: "POST",
@@ -129,14 +119,13 @@ export default function ProcessPage() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; // Keep incomplete line in buffer
+        buffer = lines.pop() || ""; 
 
         for (const line of lines) {
           if (!line.trim()) continue;
           try {
             const event = JSON.parse(line);
 
-            // Status events (Visual Extraction)
             if (event.status === "extracting_visuals" || event.status === "visuals_done" || event.status === "generating_notes") {
               window.dispatchEvent(new CustomEvent("processingStatus", {
                 detail: {
@@ -146,7 +135,6 @@ export default function ProcessPage() {
               }));
             }
 
-            // Forward sections count so notes page can show placeholders
             if (event.status === "sections_done" && event.sections_count) {
               const currentData = JSON.parse(localStorage.getItem("noteflix_data") || "{}");
               if (!currentData.notes || currentData.notes.length === 0) {
@@ -158,7 +146,6 @@ export default function ProcessPage() {
               }));
             }
 
-            // Stream metadata/transcript immediately
             if (event.status === "metadata_ready") {
               const currentData = JSON.parse(localStorage.getItem("noteflix_data") || "{}");
               currentData.metadata = event.metadata;
@@ -167,7 +154,6 @@ export default function ProcessPage() {
               window.dispatchEvent(new CustomEvent("metadataReady", { detail: { metadata: event.metadata, transcript: event.transcript } }));
             }
 
-            // Stream individual notes as they're generated (in order)
             if (event.status === "note_ready" && event.note) {
               const currentData = JSON.parse(localStorage.getItem("noteflix_data") || "{}");
               if (!currentData.notes) currentData.notes = [];
@@ -185,7 +171,6 @@ export default function ProcessPage() {
               }));
             }
 
-            // Update on complete
             if (event.status === "complete" && event.data) {
               localStorage.setItem("noteflix_data", JSON.stringify(event.data));
               window.dispatchEvent(new CustomEvent("notesUpdated", { detail: event.data }));
@@ -208,7 +193,6 @@ export default function ProcessPage() {
     }
   }
 
-  // Toggle Helpers
   const toggleChapter = (index: number) => {
     const newSet = new Set(selectedIndices);
     if (newSet.has(index)) newSet.delete(index);
@@ -226,18 +210,15 @@ export default function ProcessPage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-10 relative overflow-hidden">
 
-
-
-      {/* 🌈 background glow */}
+      {}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute w-[700px] h-[700px] bg-purple-400/20 blur-[160px] rounded-full -top-60 -left-40" />
         <div className="absolute w-[600px] h-[600px] bg-blue-400/20 blur-[160px] rounded-full bottom-0 right-0" />
       </div>
 
-
       <AnimatePresence mode="wait">
 
-        {/* ================= STEP 1: INPUT ================= */}
+        {}
         {step === "input" && (
           <motion.div
             key="input"
@@ -246,7 +227,6 @@ export default function ProcessPage() {
             exit={{ opacity: 0, y: -40 }}
             className="bg-card/80 backdrop-blur-2xl p-14 rounded-[40px] shadow-2xl w-[720px] text-center border border-border"
           >
-
 
             <Sparkles className="mx-auto mb-6 text-purple-600" size={42} />
 
@@ -258,7 +238,6 @@ export default function ProcessPage() {
               Paste a YouTube lecture and let AI turn it into structured notes.
             </p>
 
-
             <div className="flex gap-4">
               <input
                 value={url}
@@ -266,7 +245,6 @@ export default function ProcessPage() {
                 placeholder="https://youtube.com/watch?v=..."
                 className="flex-1 px-6 py-5 text-lg rounded-2xl bg-card text-foreground placeholder:text-foreground-muted border border-border outline-none focus:ring-2 focus:ring-purple-500"
               />
-
 
               <button
                 onClick={handlePreview}
@@ -282,7 +260,7 @@ export default function ProcessPage() {
           </motion.div>
         )}
 
-        {/* ================= STEP 2: PREVIEW & SELECTION ================= */}
+        {}
         {step === "preview" && (
           <motion.div
             key="preview"
@@ -292,17 +270,15 @@ export default function ProcessPage() {
             className="bg-card/90 backdrop-blur-2xl p-10 rounded-[40px] shadow-2xl w-[1100px] h-[85vh] overflow-hidden flex flex-col border border-border"
           >
 
-
             <div className="flex gap-10 h-full overflow-hidden">
 
-              {/* LEFT: Video & Options */}
+              {}
               <div className="w-1/2 flex flex-col h-full overflow-y-auto pr-2">
                 <h2 className="text-2xl font-bold mb-4 text-foreground flex gap-2 items-center">
                   <Film /> Setup Notes
                 </h2>
 
-
-                {/* Iframe */}
+                {}
                 <div className="aspect-video rounded-2xl overflow-hidden shadow-lg mb-6 shrink-0">
                   <iframe
                     className="w-full h-full"
@@ -321,7 +297,7 @@ export default function ProcessPage() {
 
               </div >
 
-              {/* RIGHT: Chapter Selection */}
+              {}
               < div className="w-1/2 flex flex-col h-full border-l pl-8 border-gray-100" >
                 <div className="flex justify-between items-center mb-4">
                   <SectionTitle icon={<CheckSquare />} title="Select Chapters" />
@@ -391,17 +367,14 @@ export default function ProcessPage() {
         )
         }
 
-
       </AnimatePresence >
     </div >
   );
 }
 
-/* reusable components */
 function SectionTitle({ title, icon }: any) {
   return <h3 className="text-sm font-bold uppercase tracking-wider text-foreground-muted mb-3 flex items-center gap-2">{icon} {title}</h3>;
 }
-
 
 function Select({ title, options, value, setValue }: any) {
   return (
@@ -425,5 +398,4 @@ function Toggle({ label, value, setValue, icon }: any) {
     </div>
   );
 }
-
 

@@ -26,9 +26,8 @@ export default function SettingsPage() {
                     <p className="text-foreground-muted mt-2">Personalize your Noteflix experience</p>
                 </div>
 
-
                 <div className="max-w-2xl space-y-8">
-                    {/* Appearance Section */}
+                    {}
                     <section className="bg-card backdrop-blur-xl border border-border rounded-[32px] p-8 shadow-lg">
                         <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
                             Appearance
@@ -55,7 +54,7 @@ export default function SettingsPage() {
                         </div>
                     </section>
 
-                    {/* Profile Section (Mock for now) */}
+                    {}
                     <section className="bg-card backdrop-blur-xl border border-border rounded-[32px] p-8 shadow-lg opacity-60">
                         <h2 className="text-2xl font-bold mb-6">Profile Settings</h2>
                         <div className="space-y-4">

@@ -5,18 +5,16 @@ import yt_dlp
 import time
 from pathlib import Path
 
-# Path setup
 BASE_DIR = Path(__file__).resolve().parents[2]
 STATIC_DIR = BASE_DIR / "static"
 VISUALS_DIR = STATIC_DIR / "visuals"
 
-# Ensure directories exist
 VISUALS_DIR.mkdir(parents=True, exist_ok=True)
 
 def get_stream_url(youtube_url: str):
     """Get direct stream URL for a YouTube video."""
     ydl_opts = {
-        "format": "best[height<=480]", # Lower res for faster processing
+        "format": "best[height<=480]", 
         "quiet": True,
         "nocheckcertificate": True,
     }
@@ -45,45 +43,36 @@ def extract_meaningful_frames(youtube_url: str, video_id: str, interval_sec: int
         return []
 
     fps = cap.get(cv2.CAP_PROP_FPS)
-    if fps <= 0: fps = 30 # Fallback
+    if fps <= 0: fps = 30 
     
     duration_sec = cap.get(cv2.CAP_PROP_FRAME_COUNT) / fps
     
     visuals = []
-    current_sec = 5 # Start 5 seconds in to avoid intros
-    
-    # Track the last saved frame to avoid near-duplicates
+    current_sec = 5 
+
     last_text = ""
 
     while current_sec < duration_sec:
-        # Seek to the timestamp
+        
         frame_idx = int(current_sec * fps)
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
         
         ret, frame = cap.read()
         if not ret:
             break
-            
-        # 1. Grayscale for OCR
+
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
-        # 2. OCR Detection (Small subset to find if it's a slide)
-        # We don't need full OCR, just enough to know if there is "content"
-        ocr_data = pytesseract.image_to_string(gray, config='--psm 11') # Sparse text detection
-        
-        # Heuristic: Is there enough text to be a slide?
+
+        ocr_data = pytesseract.image_to_string(gray, config='--psm 11') 
+
         text_len = len(ocr_data.strip())
-        
-        # Also check for code-like patterns (indents, brackets, keywords)
+
         is_code = any(kw in ocr_data for kw in ["def ", "class ", "interface ", "function ", "{", "}"])
-        
-        # If it looks like a slide or code, and it's different from the last one
+
         if (text_len > 50 or is_code) and ocr_data.strip()[:50] != last_text[:50]:
             filename = f"frame_{int(current_sec)}.jpg"
             filepath = video_folder / filename
-            
-            # Save frame
-            # Downscale for web performance
+
             small_frame = cv2.resize(frame, (854, 480))
             cv2.imwrite(str(filepath), small_frame)
             
@@ -121,8 +110,7 @@ def capture_specific_frame(youtube_url: str, video_id: str, timestamp_sec: float
 
     fps = cap.get(cv2.CAP_PROP_FPS)
     if fps <= 0: fps = 30
-    
-    # Seek to the timestamp
+
     frame_idx = int(timestamp_sec * fps)
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
     
@@ -133,8 +121,7 @@ def capture_specific_frame(youtube_url: str, video_id: str, timestamp_sec: float
         
     filename = f"frame_{int(timestamp_sec)}.jpg"
     filepath = video_folder / filename
-    
-    # Save high quality
+
     small_frame = cv2.resize(frame, (854, 480))
     cv2.imwrite(str(filepath), small_frame)
     

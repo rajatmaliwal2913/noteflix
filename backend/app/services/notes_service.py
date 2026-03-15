@@ -14,10 +14,10 @@ async def generate_notes_for_sections(
     async def process_single_section(section, index):
         try:
             print(f"   Processing section {index + 1}/{len(sections)}: {section.get('title', 'Untitled')}")
-            # Generate title and notes together in one call
+            
             result = await generate_section_notes_with_title(
                 section["text"], 
-                section.get("title", ""),  # Use YouTube chapter title as hint
+                section.get("title", ""),  
                 depth, format, tone, language, include_visuals, include_code
             )
             
@@ -54,16 +54,13 @@ async def generate_notes_for_sections(
             }
             return (index, note_item)
 
-    # Process all sections in parallel
     tasks = [process_single_section(s, i) for i, s in enumerate(sections)]
-    
-    # Use as_completed to get results as soon as they're ready
+
     results = []
     for coro in asyncio.as_completed(tasks):
         index, note_item = await coro
         results.append((index, note_item))
-    
-    # Sort by index to maintain order
+
     results.sort(key=lambda x: x[0])
     notes = [note for _, note in results]
     

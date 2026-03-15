@@ -54,7 +54,6 @@ export default function BookmarksPage() {
                     <p className="text-foreground-muted mt-2">Your saved lectures and insights</p>
                 </div>
 
-
                 {loading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {[1, 2, 3].map(i => (

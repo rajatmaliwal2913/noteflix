@@ -13,7 +13,6 @@ from app.services.visual_service import capture_specific_frame
 
 router = APIRouter()
 
-
 @router.post("/preview-video")
 async def preview_video(req: VideoRequest):
     """
@@ -25,14 +24,13 @@ async def preview_video(req: VideoRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @router.post("/capture-frame")
 async def capture_frame(req: CaptureFrameRequest):
     """
     Captures a specific frame from the video.
     """
     try:
-        # Run in thread as it's a blocking CV2 call
+        
         url = await asyncio.to_thread(
             capture_specific_frame, req.url, req.video_id, req.timestamp
         )
@@ -41,7 +39,6 @@ async def capture_frame(req: CaptureFrameRequest):
         return {"url": url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/process-video")
 async def process_video(req: VideoProcessRequest):
@@ -54,28 +51,19 @@ async def process_video(req: VideoProcessRequest):
             start = time.time()
             yield json.dumps({"status": "starting", "message": "Initializing pipeline..."}) + "\n"
 
-            # ---------------------------------------------------
-            # OPTIONS
-            # ---------------------------------------------------
             depth = req.depth
             format_type = req.format
             tone = req.tone
             language = req.language
 
-            # ---------------------------------------------------
-            # 1️⃣ TRANSCRIPT
-            # ---------------------------------------------------
             yield json.dumps({"status": "transcribing", "message": "Extracting transcript (this may take a moment)..."}) + "\n"
-            await asyncio.sleep(0.1) # efficient yield
+            await asyncio.sleep(0.1) 
 
             t0 = time.time()
-            # Still blocking, but user sees 'Transcribing'
+            
             data = generate_transcript(req.url) 
             yield json.dumps({"status": "transcribing_done", "message": "Transcript extracted"}) + "\n"
-            
-            # ---------------------------------------------------
-            # 2️⃣ SECTIONS (Use YouTube chapters directly - no AI title generation)
-            # ---------------------------------------------------
+
             yield json.dumps({"status": "processing_sections", "message": "Preparing sections..."}) + "\n"
             
             sections = await generate_sections(
@@ -85,31 +73,23 @@ async def process_video(req: VideoProcessRequest):
             )
             yield json.dumps({"status": "sections_done", "message": f"Prepared {len(sections)} sections", "sections_count": len(sections)}) + "\n"
 
-            # Send metadata and transcript immediately for display
             yield json.dumps({
                 "status": "metadata_ready",
                 "metadata": data["metadata"],
                 "transcript": data["transcript"]
             }) + "\n"
 
-            # ---------------------------------------------------
-            # 3️⃣ NOTES (Generate with title in one call, stream as ready)
-            # ---------------------------------------------------
-            visual_resources = [] # Manual capture handled via /capture-frame
+            visual_resources = [] 
 
-            # ---------------------------------------------------
-            # 4️⃣ NOTES (Generate with title in one call, stream as ready)
-            # ---------------------------------------------------
             yield json.dumps({"status": "generating_notes", "message": "Generating notes..."}) + "\n"
-            
-            # Stream notes as they're generated
+
             async def process_and_stream_section(section, index):
                 from app.services.llm_service import generate_section_notes_with_title
-                max_attempts = 8  # Keep retrying on failure
+                max_attempts = 8  
                 
                 for attempt in range(max_attempts):
                     try:
-                        # Filter visuals relevant to this section's time range
+                        
                         section_visuals = [
                             v for v in visual_resources 
                             if section["start"] <= v["timestamp"] <= section["end"]
@@ -123,7 +103,7 @@ async def process_video(req: VideoProcessRequest):
                             include_code=req.include_code,
                             visual_resources=section_visuals
                         )
-                        # Validate result structure
+                        
                         if not isinstance(result, dict):
                             raise ValueError(f"Invalid result type: {type(result)}")
                         
@@ -148,11 +128,10 @@ async def process_video(req: VideoProcessRequest):
                         print(f"❌ Error for section '{section.get('title', 'section')}' (attempt {attempt + 1}/{max_attempts}): {error_msg}")
                         
                         if attempt < max_attempts - 1:
-                            wait_time = min(5 * (2 ** attempt), 60)  # 5, 10, 20, 40, 60...
+                            wait_time = min(5 * (2 ** attempt), 60)  
                             print(f"🔄 Retrying '{section.get('title', 'section')}' in {wait_time}s...")
                             await asyncio.sleep(wait_time)
-                
-                # Final fallback (after 8 attempts - very unlikely)
+
                 import traceback
                 print(f"⚠️ All attempts exhausted for '{section.get('title', 'section')}'")
                 print(f"   Traceback: {traceback.format_exc()}")
@@ -170,20 +149,17 @@ async def process_video(req: VideoProcessRequest):
                     }
                 }
                 return (index, note_item)
-            
-            # Process all sections in parallel and stream results as they complete
+
             tasks = [process_and_stream_section(s, i) for i, s in enumerate(sections)]
             notes = [None] * len(sections)
-            next_index = 0  # Track next expected index for ordered streaming
-            completed_results = {}  # Store completed results by index
-            
-            # Stream notes as they complete, but maintain order
+            next_index = 0  
+            completed_results = {}  
+
             for coro in asyncio.as_completed(tasks):
                 index, note_item = await coro
                 notes[index] = note_item
                 completed_results[index] = note_item
-                
-                # Stream notes in order (wait for next expected index)
+
                 while next_index in completed_results:
                     yield json.dumps({
                         "status": "note_ready",
@@ -196,17 +172,11 @@ async def process_video(req: VideoProcessRequest):
             
             yield json.dumps({"status": "notes_done", "message": "Notes generated"}) + "\n"
 
-            # ---------------------------------------------------
-            # 4️⃣ EMBEDDINGS (for search/chat - lightweight, non-blocking)
-            # ---------------------------------------------------
             yield json.dumps({"status": "creating_embeddings", "message": "Preparing for AI chat..."}) + "\n"
             embeddings = create_embeddings_for_sections(sections)
 
             total_time = round(time.time() - start, 2)
-            
-            # ---------------------------------------------------
-            # FINAL PAYLOAD
-            # ---------------------------------------------------
+
             final_data = {
                 "status": "success",
                 "processing_time": total_time,
@@ -223,7 +193,6 @@ async def process_video(req: VideoProcessRequest):
             yield json.dumps({"status": "error", "message": f"PIPELINE_ERROR: {str(e)}"}) + "\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
-
 
 from pydantic import BaseModel
 
@@ -257,7 +226,6 @@ async def api_generate_flashcards(req: ExtrasRequest):
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/generate-interview")
 async def api_generate_interview(req: ExtrasRequest):

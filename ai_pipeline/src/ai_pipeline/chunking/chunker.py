@@ -29,7 +29,6 @@ def chunk_by_time(transcript, chunk_minutes=2):
 
     return chunks
 
-
 def merge_chunk_text(chunk):
     """
     Merge transcript segments into one section.
@@ -43,7 +42,6 @@ def merge_chunk_text(chunk):
         "text": full_text,
         "source": "ai_chunking"
     }
-
 
 def create_sections(transcript):
     """

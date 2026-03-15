@@ -17,7 +17,6 @@ export default function SignupPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    // ✅ Create auth user + pass name as metadata
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -46,10 +45,9 @@ export default function SignupPage() {
 
         <h2 className="text-3xl font-bold mb-8 text-foreground">Create Account</h2>
 
-
         <form onSubmit={handleSignup} className="space-y-6">
 
-          {/* NAME */}
+          {}
           <div className="relative">
             <User className="absolute left-4 top-4 text-gray-400" />
             <input
@@ -63,7 +61,7 @@ export default function SignupPage() {
 
           </div>
 
-          {/* EMAIL */}
+          {}
           <div className="relative">
             <Mail className="absolute left-4 top-4 text-gray-400" />
             <input
@@ -77,7 +75,7 @@ export default function SignupPage() {
 
           </div>
 
-          {/* PASSWORD */}
+          {}
           <div className="relative">
             <Lock className="absolute left-4 top-4 text-gray-400" />
             <input
@@ -91,7 +89,7 @@ export default function SignupPage() {
 
           </div>
 
-          {/* BUTTON */}
+          {}
           <button
             disabled={isLoading}
             className="w-full py-4 bg-foreground text-background rounded-xl font-bold flex justify-center items-center hover:opacity-90 transition"
@@ -107,7 +105,6 @@ export default function SignupPage() {
             Sign in
           </a>
         </p>
-
 
       </div>
     </div>
