@@ -1056,7 +1056,10 @@ function NotesPageContent() {
                           height: '100%',
                           playerVars: {
                             autoplay: 0,
-                            origin: typeof window !== 'undefined' ? window.location.origin : '',
+                            modestbranding: 1,
+                            rel: 0,
+                            enablejsapi: 1,
+                            origin: typeof window !== 'undefined' ? window.location.origin : 'https://www.youtube.com',
                             host: 'https://www.youtube.com',
                           },
                         }}
