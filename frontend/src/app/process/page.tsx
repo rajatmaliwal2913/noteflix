@@ -7,6 +7,7 @@ import {
   Youtube, Loader2, Sparkles, Film, Wand2, ArrowRight, Settings2, CheckSquare, Image, Code
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { API_URL } from "@/lib/api";
 
 export default function ProcessPage() {
   const router = useRouter();
@@ -41,7 +42,6 @@ export default function ProcessPage() {
 
     try {
 
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
       const res = await fetch(`${API_URL}/preview-video`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -96,7 +96,6 @@ export default function ProcessPage() {
     router.push(`/notes`);
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
       const response = await fetch(`${API_URL}/process-video`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

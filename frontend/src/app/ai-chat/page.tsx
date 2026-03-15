@@ -4,6 +4,7 @@ import Sidebar from "@/components/Sidebar";
 import { MessageSquare, Send, Sparkles, Loader2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
+import { API_URL } from "@/lib/api";
 
 export default function AIChatPage() {
     const [messages, setMessages] = useState<Array<{ role: "user" | "assistant", content: string }>>([
@@ -27,7 +28,6 @@ export default function AIChatPage() {
         setLoading(true);
 
         try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
             const response = await fetch(`${API_URL}/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

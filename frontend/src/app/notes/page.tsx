@@ -14,11 +14,11 @@ import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import Sidebar from "@/components/Sidebar";
 import YouTube from "react-youtube";
+import { API_URL } from "@/lib/api";
 
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
 import "react-quill-new/dist/quill.snow.css";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 const filterGenericText = (text: any): string => {
   if (typeof text !== 'string') {

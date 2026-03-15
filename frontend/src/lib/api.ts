@@ -1,4 +1,14 @@
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const getBaseUrl = () => {
+  const url = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+  // Default to https for production if protocol is missing
+  return `https://${url}`;
+};
+
+export const API_URL = getBaseUrl();
+const BACKEND_URL = API_URL;
 
 export async function processVideo(url: string, options: any) {
   const response = await fetch(`${BACKEND_URL}/process-video`, {
