@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, BookOpen, Download, FileQuestion, FileText, Home,
@@ -201,7 +201,7 @@ function Flashcard({ data, index, total }: any) {
 
 type OutputTabType = "notes" | "quiz" | "flashcards" | "interview";
 
-export default function NotesPage() {
+function NotesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const videoIdFromUrl = searchParams.get("v");
@@ -1562,5 +1562,20 @@ function QuizQuestion({ index, data }: any) {
         </motion.div>
       )}
     </div>
+  );
+}
+
+export default function NotesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="animate-spin text-purple-600" size={40} />
+          <p className="text-foreground-muted animate-pulse">Loading workspace...</p>
+        </div>
+      </div>
+    }>
+      <NotesPageContent />
+    </Suspense>
   );
 }
