@@ -1056,6 +1056,8 @@ function NotesPageContent() {
                           height: '100%',
                           playerVars: {
                             autoplay: 0,
+                            origin: typeof window !== 'undefined' ? window.location.origin : '',
+                            host: 'https://www.youtube.com',
                           },
                         }}
                       />
