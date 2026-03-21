@@ -7,11 +7,18 @@ from pathlib import Path
 from dotenv import load_dotenv
 from groq import AsyncGroq, RateLimitError
 
-env_path = Path(__file__).resolve().parents[2] / ".env"
-load_dotenv(env_path)
+# Load environment variables (fallback for local dev)
+env_paths = [
+    Path(__file__).resolve().parents[0] / ".env",
+    Path(__file__).resolve().parents[1] / ".env",
+    Path(__file__).resolve().parents[2] / ".env",
+]
+for path in env_paths:
+    if path.exists():
+        load_dotenv(path)
 
 client = AsyncGroq(
-    api_key=os.getenv("GROQ_API_KEY"),
+    api_key=os.environ.get("GROQ_API_KEY"),
     timeout=15,  
 )
 

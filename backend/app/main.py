@@ -16,8 +16,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://noteflixai.vercel.app",
+        "https://www.noteflixai.vercel.app",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "*",  # Allow all for now to unblock, but we can restrict more later if needed
     ],
     allow_credentials=True,
     allow_methods=["*"],

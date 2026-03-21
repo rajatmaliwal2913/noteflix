@@ -93,8 +93,6 @@ export default function ProcessPage() {
     };
     localStorage.setItem("noteflix_data", JSON.stringify(initialData));
 
-    router.push(`/notes`);
-
     try {
       const response = await fetch(`${API_URL}/process-video`, {
         method: "POST",
@@ -107,6 +105,14 @@ export default function ProcessPage() {
           selected_chapters: selectedChaptersPayload
         }),
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Server returned ${response.status}: ${errorText}`);
+      }
+
+      // Only redirect after we know the request started successfully
+      router.push(`/notes`);
 
       if (!response.body) throw new Error("No response body");
 
