@@ -11,57 +11,39 @@ app = FastAPI(title="Noteflix API")
 # Ensure static directories exist
 os.makedirs("static/visuals", exist_ok=True)
 
-# Add CORS middleware FIRST ( outermost )
-# To be outermost in FastAPI, it should be added LAST or use the special middleware property.
-# However, add_middleware adds it to the TOP of the stack.
-# Simplified, combined middleware for absolute reliability
-@app.middleware("http")
-async def combined_middleware(request, call_next):
-    # 1. Log request
-    print(f"DEBUG: {request.method} {request.url} from {request.headers.get('origin')}")
-    
-    # 2. Handle preflight manually just in case
-    if request.method == "OPTIONS":
-        from fastapi.responses import Response
-        return Response(
-            status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Max-Age": "86400",
-            }
-        )
+# Standard CORS is actually robust if added LAST (outermost)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=False,
+)
 
-    # 3. Call the actual app
+@app.middleware("http")
+async def simple_log_middleware(request, call_next):
+    print(f"REQUEST: {request.method} {request.url.path}")
     try:
-        response = await call_next(request)
+        return await call_next(request)
     except Exception as e:
         import traceback
-        print(f"CRITICAL APP ERROR: {e}")
-        print(traceback.format_exc())
+        print(f"INTERNAL ERROR: {e}")
+        traceback.print_exc()
         from fastapi.responses import JSONResponse
-        response = JSONResponse(
+        return JSONResponse(
             status_code=500,
-            content={"detail": "Internal Server Error", "message": str(e)},
+            content={"detail": "Something went wrong on the server", "message": str(e)}
         )
 
-    # 4. Inject CORS headers into EVERYTHING
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
-
 @app.get("/health")
-def health_check():
+async def health_check():
     return {
         "status": "healthy", 
         "port": os.getenv("PORT", "8080"),
-        "version": "1.0.1",
-        "env": os.getenv("RAILWAY_ENVIRONMENT", "unknown")
+        "env": os.getenv("RAILWAY_ENVIRONMENT", "production")
     }
 
-# Mount static files (ensure directory exists)
+# Mount static files
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
