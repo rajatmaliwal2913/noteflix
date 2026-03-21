@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 import time
@@ -13,16 +12,25 @@ from app.services.visual_service import capture_specific_frame
 
 router = APIRouter()
 
+@router.get("/preview-video")
+async def preview_video_get():
+    return {"message": "You reached /preview-video via GET. This confirms connectivity, but this endpoint requires a POST request from the frontend."}
+
 @router.post("/preview-video")
 async def preview_video(req: VideoRequest):
     """
     Fetch video metadata + chapters for the preview step.
     """
+    print(f"DEBUG: Processing preview for URL: {req.url}")
     try:
         data = get_video_metadata(req.url)
+        print(f"DEBUG: Preview data generated: {data.get('title')}")
         return data
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        import traceback
+        err = f"PREVIEW ERROR: {str(e)}\n{traceback.format_exc()}"
+        print(err)
+        raise HTTPException(status_code=400, detail=err)
 
 @router.post("/capture-frame")
 async def capture_frame(req: CaptureFrameRequest):
@@ -39,6 +47,10 @@ async def capture_frame(req: CaptureFrameRequest):
         return {"url": url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/process-video")
+async def process_video_get():
+    return {"message": "You reached /process-video via GET. This confirms connectivity, but this endpoint requires a POST request from the frontend."}
 
 @router.post("/process-video")
 async def process_video(req: VideoProcessRequest):

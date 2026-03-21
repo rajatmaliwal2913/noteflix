@@ -12,39 +12,83 @@ import os
 import uuid
 import json
 import glob
+import re
+import requests
+import asyncio
+from pathlib import Path
+from typing import List, Dict, Any
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api.formatters import JSONFormatter
 import yt_dlp
-import whisper
+from dotenv import load_dotenv
 
-WHISPER_MODEL = None
+env_path = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(env_path)
+
+def get_video_id(url: str) -> str:
+    match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11}).*", url)
+    return match.group(1) if match else "unknown"
 
 def get_video_metadata(url: str):
-    ydl_opts = {
-        "quiet": True,
-        "skip_download": True,
-        "nocheckcertificate": True,
-        "noplaylist": True,       
-        "extract_flat": False,    
-    }
+    video_id = get_video_id(url)
+    
+    # Strategy 1: oEmbed (Most resilient to IP blocks)
+    try:
+        oembed_url = f"https://www.youtube.com/oembed?url={url}&format=json"
+        response = requests.get(oembed_url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                "video_id": video_id,
+                "title": data.get("title", "YouTube Lecture"),
+                "duration": 0, # oEmbed doesn't provide duration
+                "author": data.get("author_name", "Unknown"),
+                "thumbnail": data.get("thumbnail_url", f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"),
+                "chapters": []
+            }
+    except Exception as e:
+        print(f"oEmbed failed: {e}")
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    # Strategy 2: yt-dlp (Fallback, likely to be blocked but has chapters)
+    try:
+        ydl_opts = {
+            "quiet": True,
+            "skip_download": True,
+            "nocheckcertificate": True,
+            "noplaylist": True,       
+            "extract_flat": False,    
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            
+        chapters = []
+        if info.get("chapters"):
+            for ch in info["chapters"]:
+                chapters.append({
+                    "title": ch.get("title", "Chapter"),
+                    "start": ch.get("start_time", 0),
+                    "end": ch.get("end_time", 0)
+                })
 
-    chapters = []
-    if info.get("chapters"):
-        for ch in info["chapters"]:
-            chapters.append({
-                "title": ch.get("title", "Chapter"),
-                "start": ch.get("start_time", 0),
-                "end": ch.get("end_time", 0)
-            })
-
+        return {
+            "video_id": info.get("id"),
+            "title": info.get("title", "Untitled Video"),
+            "duration": info.get("duration", 0),
+            "author": info.get("uploader", "Unknown"),
+            "thumbnail": info.get("thumbnail", ""),
+            "chapters": chapters
+        }
+    except Exception as e:
+        print(f"yt-dlp metadata failed: {e}")
+        
+    # Final Fallback
     return {
-        "video_id": info.get("id"),
-        "title": info.get("title", "Untitled Video"),
-        "duration": info.get("duration", 0),
-        "author": info.get("uploader", "Unknown"),
-        "thumbnail": info.get("thumbnail", ""),
-        "chapters": chapters
+        "video_id": video_id,
+        "title": "YouTube Lecture",
+        "duration": 0,
+        "author": "Unknown",
+        "thumbnail": f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg",
+        "chapters": []
     }
 
 def get_captions_with_ytdlp(url: str):
@@ -109,87 +153,59 @@ def get_captions_with_ytdlp(url: str):
         print("⚠️ yt-dlp subtitle fetch failed:", e)
         return None
 
-def load_whisper_model():
-    global WHISPER_MODEL
-    if WHISPER_MODEL is None:
-        print("🔊 Loading Whisper model (first time only)...")
-        WHISPER_MODEL = whisper.load_model("base")
-    return WHISPER_MODEL
-
-def download_youtube_audio(url: str):
-    """
-    Download audio → convert to mp3 → cleanup leftovers
-    """
-
-    file_id = str(uuid.uuid4())
-    output_template = f"{file_id}.%(ext)s"
-
-    ydl_opts = {
-        "format": "bestaudio/best",
-        "outtmpl": output_template,
-        "quiet": True,
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "mp3",
-            "preferredquality": "192",
-        }],
-        "keepvideo": False,
-        "nocheckcertificate": True,
-    }
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-
-    for file in glob.glob(f"{file_id}.*"):
-        if not file.endswith(".mp3"):
-            try:
-                os.remove(file)
-            except:
-                pass
-
-    return f"{file_id}.mp3"
-
-def whisper_transcribe(audio_path: str):
-    model = load_whisper_model()
-    result = model.transcribe(audio_path)
-    return result["segments"]
-
-def normalize_whisper(segments):
-    return [
-        {
-            "text": seg["text"].strip(),
-            "start": seg["start"],
-            "end": seg["end"]
-        }
-        for seg in segments
-    ]
-
 def generate_transcript(url: str):
     """
-    yt-dlp subtitles → Whisper fallback
+    High-level transcript generation:
+    1. Try youtube-transcript-api (Fastest, most resilient)
+    2. Try yt-dlp auto-subs
     """
-
+    video_id = get_video_id(url)
     metadata = get_video_metadata(url)
-    print("📺 Processing video:", metadata["title"])
+    
+    transcript = None
+    source = None
 
-    captions = get_captions_with_ytdlp(url)
+    # 1. youtube-transcript-api
+    try:
+        print(f"Attempting youtube-transcript-api for {video_id}...")
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        
+        # Prefer manually created, then auto-generated
+        try:
+            ts = transcript_list.find_manually_created_transcript()
+        except:
+            ts = transcript_list.find_generated_transcript(['en', 'hi', 'es', 'fr', 'de'])
+            
+        data = ts.fetch()
+        
+        # Format for our needs
+        transcript = []
+        for entry in data:
+            transcript.append({
+                "text": entry["text"],
+                "start": entry["start"],
+                "end": entry["start"] + entry["duration"]
+            })
+        source = "youtube_transcript_api"
+        print(f"✅ Successfully fetched transcript via API ({len(transcript)} segments)")
+            
+    except Exception as e:
+        print(f"youtube-transcript-api failed: {e}")
 
-    if captions:
-        print("⚡ Using YouTube subtitles")
-        transcript = captions
-        source = "youtube_subtitles"
+    # 2. yt-dlp fallback
+    if not transcript:
+        try:
+            print(f"Falling back to yt-dlp for {video_id}...")
+            transcript = get_captions_with_ytdlp(url)
+            if transcript:
+                source = "yt_dlp"
+                print(f"✅ Successfully fetched transcript via yt-dlp ({len(transcript)} segments)")
+        except Exception as e:
+            print(f"yt-dlp caption fallback failed: {e}")
 
-    else:
-        print("🤖 Subtitles not found → Using Whisper")
-        audio_file = download_youtube_audio(url)
-        segments = whisper_transcribe(audio_file)
-        transcript = normalize_whisper(segments)
-        source = "whisper"
-
-        if os.path.exists(audio_file):
-            os.remove(audio_file)
-
-    print(f"✅ Transcript segments: {len(transcript)}")
+    # If all fails, raise a helpful error
+    if not transcript:
+        raise Exception("Could not extract any transcripts for this video. YouTube might be blocking the server or captions are disabled.")
 
     return {
         "metadata": metadata,
