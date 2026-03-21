@@ -8,17 +8,48 @@ import os
 
 app = FastAPI(title="Noteflix API")
 
+# Ensure static directories exist
 os.makedirs("static/visuals", exist_ok=True)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
+# Add CORS middleware FIRST ( outermost )
+# To be outermost in FastAPI, it should be added LAST or use the special middleware property.
+# However, add_middleware adds it to the TOP of the stack.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    # Manual CORS header injection for EVERY response (even if middleware is skipped)
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(rest_of_path: str):
+    # Explictly handle ALL options requests to be safe
+    from fastapi.responses import Response
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "port": os.getenv("PORT", "unknown")}
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.middleware("http")
 async def log_requests(request, call_next):
