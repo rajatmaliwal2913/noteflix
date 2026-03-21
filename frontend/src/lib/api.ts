@@ -1,5 +1,5 @@
 const getBaseUrl = () => {
-  const url = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+  const url = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8080";
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
   }

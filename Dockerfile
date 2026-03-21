@@ -35,8 +35,8 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
 
 WORKDIR /app/backend
 
-# Set dynamic port for Railway
-ENV PORT=8000
-EXPOSE 8000
+# Set dynamic port for Railway (default to 8080 as seen in logs)
+ENV PORT=8080
+EXPOSE 8080
 
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
