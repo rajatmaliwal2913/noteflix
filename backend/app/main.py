@@ -19,12 +19,24 @@ app.add_middleware(
         "https://www.noteflixai.vercel.app",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "*",  # Allow all for now to unblock, but we can restrict more later if needed
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    import traceback
+    print(f"CRITICAL ERROR: {str(exc)}")
+    print(traceback.format_exc())
+    # Return a 500 but with CORS headers handled by the middleware
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "message": str(exc)},
+        headers={"Access-Control-Allow-Origin": request.headers.get("origin", "*")}
+    )
 
 @app.get("/")
 def root():

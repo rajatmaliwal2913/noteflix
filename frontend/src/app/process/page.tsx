@@ -48,7 +48,10 @@ export default function ProcessPage() {
         body: JSON.stringify({ url }),
       });
 
-      if (!res.ok) throw new Error("Preview failed");
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Preview failed (${res.status}): ${errorText}`);
+      }
       const data = await res.json();
       setPreview(data);
 
