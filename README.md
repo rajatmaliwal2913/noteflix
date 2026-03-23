@@ -93,22 +93,7 @@ docker-compose up --build
 
 ---
 
-## 🌐 Deployment (Hybrid Approach)
 
-NoteFlix uses a hybrid deployment model because the backend requires persistent computing and larger memory than standard serverless functions allow.
-
-### 1. Backend (Railway / Render)
-Deploy using the root `Dockerfile`. 
-- **Platform**: Railway is recommended.
-- **Variables**: Set `GROQ_API_KEY`.
-- **Port**: 8000.
-
-### 2. Frontend (Vercel)
-- **Root Directory**: `frontend`
-- **Variables**: 
-  - `NEXT_PUBLIC_API_URL`: Your deployed backend URL.
-  - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase URL.
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase Key.
 
 ---
 
